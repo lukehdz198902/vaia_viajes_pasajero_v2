@@ -1,0 +1,25 @@
+{
+    "dart.flutterSdkPath": "C:\\src\\flutter",
+    "dart.openDevTools": "flutter",
+    "dart.showinspectorNotifications": true,
+    "dart.checkForSdkUpdates": false,
+    "dart.lineLength": 120,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "always"
+    },
+    "files.autoSave": "onFocusChange",
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "[dart]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.rulers": [120],
+        "editor.semanticHighlighting.enabled": true
+    },
+    "explorer.compactFolders": false,
+    "workbench.colorTheme": "One Dark Pro",
+    "workbench.iconTheme": "vscode-icons",
+    "flutter.hotReloadOnSave": "always",
+    "flutter.runAfterSave": false
+}
