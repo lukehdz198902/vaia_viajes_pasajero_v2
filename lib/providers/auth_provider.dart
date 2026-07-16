@@ -24,38 +24,29 @@ class AuthProvider extends ChangeNotifier {
     _loading = true;
     _error = null;
     notifyListeners();
-    try {
-      final res = await _api.post('/IniciarSesion', body: {
-        'account': account,
-        'pass': password,
-      });
-      if (res.success && res.data != null) {
-        List<dynamic> list = res.data is List ? res.data : [res.data];
-        if (list.isNotEmpty) {
-          _user = UserModel.fromJson(list[0] as Map<String, dynamic>);
-          if (_user!.id <= 0 || _user!.id.toString() == '-1') {
-            _error = 'Credenciales invalidas';
-            _user = null;
-            _loading = false;
-            notifyListeners();
-            return false;
-          }
-          await _storage.saveUserData(list[0] as Map<String, dynamic>);
-          _loading = false;
-          notifyListeners();
-          return true;
-        }
-      }
-      _error = res.message ?? 'Error al iniciar sesion';
-      _loading = false;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _error = 'Error de conexion';
-      _loading = false;
-      notifyListeners();
-      return false;
-    }
+
+    // Simular login — usar datos fijos mientras no haya API disponible
+    await Future.delayed(const Duration(milliseconds: 800));
+    final mockUser = {
+      'id': 1,
+      'idcompania': 1,
+      'nombre': 'María',
+      'appaterno': 'García',
+      'apmaterno': 'López',
+      'correo': 'maria@ejemplo.com',
+      'codigopaistel': '+52',
+      'telefono': '5551234567',
+      'account': 'maria_g',
+      'uuidsesion': 'mock-session-token-001',
+      'bloqueado': false,
+      'conectado': true,
+      'eslogueadocongoogle': false,
+    };
+    _user = UserModel.fromJson(mockUser);
+    await _storage.saveUserData(mockUser);
+    _loading = false;
+    notifyListeners();
+    return true;
   }
 
   Future<bool> register(Map<String, dynamic> data) async {
