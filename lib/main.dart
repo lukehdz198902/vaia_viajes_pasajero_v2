@@ -8,6 +8,7 @@ import 'providers/auth_provider.dart';
 import 'providers/ride_provider.dart';
 import 'providers/profile_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/theme_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +27,7 @@ class VaiaViajesApp extends StatelessWidget {
       providers: [
         Provider<StorageService>.value(value: storage),
         Provider<ApiService>.value(value: api),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider(api, storage)),
         ChangeNotifierProxyProvider<AuthProvider, RideProvider>(
           create: (ctx) => RideProvider(api, ctx.read<AuthProvider>()),
@@ -40,13 +42,19 @@ class VaiaViajesApp extends StatelessWidget {
           update: (_, auth, prev) => prev!..updateAuth(auth),
         ),
       ],
-      child: MaterialApp(
-        title: 'Vaia Viajes',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        initialRoute: AppRoutes.splash,
-        routes: AppRoutes.routes,
-        onGenerateRoute: AppRoutes.onGenerateRoute,
+      child: Consumer<ThemeProvider>(
+        builder: (_, themeProv, _) {
+          return MaterialApp(
+            title: 'Vaia Viajes',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProv.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            initialRoute: AppRoutes.splash,
+            routes: AppRoutes.routes,
+            onGenerateRoute: AppRoutes.onGenerateRoute,
+          );
+        },
       ),
     );
   }
