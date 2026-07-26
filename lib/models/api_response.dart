@@ -36,6 +36,12 @@ class ApiResponse {
   int? getNuevoId() {
     var item = firstOrNull();
     if (item is Map) return (item['id'] ?? item['Id'])?.toInt();
+    if (item is int) return item;
+    if (item is double) return item.toInt();
+    if (item is num) return item.toInt();
+    if (item is String) return int.tryParse(item);
+    if (data is int) return data;
+    if (data is num) return (data as num).toInt();
     return null;
   }
 }

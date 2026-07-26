@@ -115,11 +115,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _enviarCodigo() async {
-    setState(() => _codigoEnviado = true);
+    final profile = context.read<ProfileProvider>();
+    final ok = await profile.enviarCodigoVerificacion();
+    if (!mounted) return;
+    setState(() => _codigoEnviado = ok);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Codigo de verificacion enviado'),
-        backgroundColor: AppTheme.primary,
+      SnackBar(
+        content: Text(ok ? 'Codigo de verificacion enviado' : 'Error al enviar codigo'),
+        backgroundColor: ok ? AppTheme.primary : AppTheme.danger,
       ),
     );
   }

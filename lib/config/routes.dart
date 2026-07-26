@@ -14,6 +14,7 @@ import '../screens/promotions_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/report_incident_screen.dart';
+import '../screens/recover_password_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -31,6 +32,7 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String chat = '/chat';
   static const String reportIncident = '/report-incident';
+  static const String recoverPassword = '/recover-password';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -44,6 +46,7 @@ class AppRoutes {
       history: (_) => const HistoryScreen(),
       promotions: (_) => const PromotionsScreen(),
       settings: (_) => const SettingsScreen(),
+      recoverPassword: (_) => const RecoverPasswordScreen(),
     };
   }
 

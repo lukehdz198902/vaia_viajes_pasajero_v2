@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../config/theme.dart';
+import 'login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -114,7 +115,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await auth.logout();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const _LogoutPlaceholder()),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
       );
     }
@@ -322,17 +323,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         labelText: label.isEmpty ? null : label,
         hintText: hint,
       ),
-    );
-  }
-}
-
-class _LogoutPlaceholder extends StatelessWidget {
-  const _LogoutPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Sesion cerrada')),
     );
   }
 }

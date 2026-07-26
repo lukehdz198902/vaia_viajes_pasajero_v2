@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/theme.dart';
+import '../../services/logger.dart';
 import 'home_screen.dart';
+import 'verify_code_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -45,6 +47,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
     final auth = context.read<AuthProvider>();
     final data = {
+      'idCompania': 1,
+      'googlekey': '',
       'nombre': _nombreController.text.trim(),
       'appaterno': _appaternoController.text.trim(),
       'apmaterno': _apmaternoController.text.trim(),
@@ -54,19 +58,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'account': _accountController.text.trim(),
       'pass': _passwordController.text,
     };
+    Logger.i('RegisterScreen', 'register() data: $data');
     final success = await auth.register(data);
     if (!mounted) return;
     setState(() => _isLoading = false);
+    Logger.i('RegisterScreen', 'register() result: success=$success error=${auth.error}');
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registro exitoso'),
-          backgroundColor: Colors.green,
+      if (!mounted) return;
+      final phone = '${_codigoPaisController.text.trim()} ${_telefonoController.text.trim()}';
+      final auth = context.read<AuthProvider>();
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => VerifyCodeScreen(
+            phoneNumber: phone,
+            title: 'Verificar Registro',
+            subtitle: 'Ingrese el codigo enviado a su WhatsApp',
+            onVerified: () {
+              final nav = Navigator.of(context);
+              auth.verifyRegistrationCode('000000').then((loggedIn) {
+                if (loggedIn) {
+                  nav.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    (route) => false,
+                  );
+                }
+              });
+            },
+          ),
         ),
-      );
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-        (route) => false,
       );
     } else if (auth.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(

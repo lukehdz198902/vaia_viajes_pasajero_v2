@@ -1,8 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../../config/api_config.dart';
+import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../services/api_service.dart';
 
 class ReportIncidentScreen extends StatefulWidget {
   final int? idServicio;
@@ -23,50 +22,16 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   @override
   void initState() {
     super.initState();
-    _cargarTiposIncidente();
+    setState(() {
+      _tiposIncidente = ['Conductor grosero', 'Vehiculo en mal estado', 'Ruta incorrecta', 'Cobro excesivo', 'Otro'];
+      _isLoadingTipos = false;
+    });
   }
 
   @override
   void dispose() {
     _descCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _cargarTiposIncidente() async {
-    setState(() => _isLoadingTipos = true);
-    try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.pasajeroEndpoint}/ObtenerTiposIncidente');
-      final response = await http.get(uri).timeout(ApiConfig.timeout);
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final decoded = json.decode(response.body);
-        List<dynamic> list = decoded is List ? decoded : (decoded['data'] ?? []);
-        final tipos = list.map<String>((e) {
-          if (e is String) return e;
-          if (e is Map) return (e['nombre'] ?? e['Nombre'] ?? e.toString()) as String;
-          return e.toString();
-        }).toList();
-        setState(() {
-          _tiposIncidente = tipos;
-          _isLoadingTipos = false;
-        });
-      } else {
-        setState(() {
-          _tiposIncidente = [
-            'Conductor grosero',
-            'Vehiculo en mal estado',
-            'Ruta incorrecta',
-            'Cobro excesivo',
-            'Otro',
-          ];
-          _isLoadingTipos = false;
-        });
-      }
-    } catch (_) {
-      setState(() {
-        _tiposIncidente = ['Conductor grosero', 'Vehiculo en mal estado', 'Ruta incorrecta', 'Cobro excesivo', 'Otro'];
-        _isLoadingTipos = false;
-      });
-    }
   }
 
   Future<void> _reportar() async {
@@ -85,36 +50,30 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     }
     setState(() => _isSubmitting = true);
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.pasajeroEndpoint}/ReportarIncidente');
-      final response = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({
-              'tipoIncidente': _selectedTipo,
-              'descripcion': desc,
-              if (widget.idServicio != null) 'idServicio': widget.idServicio,
-            }),
-          )
-          .timeout(ApiConfig.timeout);
+      final api = context.read<ApiService>();
+      final res = await api.post('/ReportarIncidente', body: {
+        'idServicio': widget.idServicio,
+        'tipoIncidente': _selectedTipo,
+        'descripcion': desc,
+      });
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (res.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Incidente reportado correctamente'), backgroundColor: Colors.green),
         );
         Navigator.of(context).pop();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Error al reportar incidente'), backgroundColor: AppTheme.danger));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.message ?? 'Error al reportar incidente'), backgroundColor: AppTheme.danger),
+        );
       }
     } catch (_) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error de conexion'), backgroundColor: AppTheme.danger));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error de conexion'), backgroundColor: AppTheme.danger),
+      );
     }
   }
 

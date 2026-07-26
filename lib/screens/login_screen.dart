@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../config/theme.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
+import 'recover_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -133,8 +134,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Funcionalidad en desarrollo')),
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const _RecoverPasswordWrapper()),
                       );
                     },
                     child: Text(
@@ -221,5 +222,14 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+}
+
+class _RecoverPasswordWrapper extends StatelessWidget {
+  const _RecoverPasswordWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    return const RecoverPasswordScreen();
   }
 }

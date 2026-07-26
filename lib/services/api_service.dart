@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/api_response.dart';
 import 'storage_service.dart';
+import 'logger.dart';
 
 class ApiService {
   final StorageService _storage;
@@ -14,7 +15,7 @@ class ApiService {
 
   String get baseUrl => _baseUrl;
 
-  bool get _useMock => true;
+  bool get _useMock => false;
 
   Future<Map<String, String>> _headers() async {
     final token = await _storage.getSessionToken();
@@ -41,30 +42,38 @@ class ApiService {
 
   Future<ApiResponse> get(String endpoint, {Map<String, String>? params}) async {
     if (_useMock) return _mockGet(endpoint, params);
+    final url = '$_baseUrl$endpoint';
+    Logger.apiRequest('GET', url, params?.cast<String, dynamic>());
     try {
-      var uri = Uri.parse('$_baseUrl$endpoint');
+      var uri = Uri.parse(url);
       if (params != null && params.isNotEmpty) {
         uri = uri.replace(queryParameters: params);
       }
       final response = await http.get(uri, headers: await _headers())
           .timeout(ApiConfig.timeout);
+      Logger.apiResponse('GET', url, response.statusCode, response.body);
       return _handleResponse(response);
     } catch (e) {
+      Logger.apiError('GET', url, e);
       return ApiResponse.error('Error de conexion: ${e.toString()}');
     }
   }
 
   Future<ApiResponse> post(String endpoint, {Map<String, dynamic>? body}) async {
     if (_useMock) return _mockPost(endpoint, body);
+    final url = '$_baseUrl$endpoint';
+    Logger.apiRequest('POST', url, body);
     try {
-      final uri = Uri.parse('$_baseUrl$endpoint');
+      final uri = Uri.parse(url);
       final response = await http.post(
         uri,
         headers: await _headers(),
         body: body != null ? json.encode(body) : null,
       ).timeout(ApiConfig.timeout);
+      Logger.apiResponse('POST', url, response.statusCode, response.body);
       return _handleResponse(response);
     } catch (e) {
+      Logger.apiError('POST', url, e);
       return ApiResponse.error('Error de conexion: ${e.toString()}');
     }
   }

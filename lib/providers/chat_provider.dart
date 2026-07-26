@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/mensaje_chat_model.dart';
 import '../services/api_service.dart';
+import '../services/logger.dart';
 import 'auth_provider.dart';
 
 class ChatProvider extends ChangeNotifier {
@@ -22,6 +23,7 @@ class ChatProvider extends ChangeNotifier {
   Future<void> cargarMensajes(int idServicio) async {
     _loading = true;
     notifyListeners();
+    Logger.i('Chat', 'cargarMensajes: idServicio=$idServicio');
     try {
       final res = await _api.get('/ObtenerMensajesChat', params: {
         'idServicio': idServicio.toString(),

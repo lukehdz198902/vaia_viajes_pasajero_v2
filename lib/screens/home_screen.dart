@@ -10,6 +10,7 @@ import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../providers/theme_provider.dart';
 import 'service_request_screen.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -159,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 context.read<AuthProvider>().logout();
                 Navigator.of(ctx).pop();
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const SizedBox.shrink()),
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
                   (route) => false,
                 );
               }),

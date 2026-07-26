@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/ride_model.dart';
 import '../models/conductor_model.dart';
 import '../services/api_service.dart';
+import '../services/logger.dart';
 import 'auth_provider.dart';
 
 class RideProvider extends ChangeNotifier {
@@ -44,6 +45,7 @@ class RideProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
+      Logger.i('Ride', 'solicitarServicio: origen=$dirOrigen destino=$dirDestino');
       final res = await _api.post('/SolicitarServicio', body: {
         'idPasajero': _auth.userId,
         'idCompania': _auth.idCompania,

@@ -3,6 +3,7 @@ import '../models/favorito_model.dart';
 import '../models/promocion_model.dart';
 import '../models/aviso_model.dart';
 import '../services/api_service.dart';
+import '../services/logger.dart';
 import 'auth_provider.dart';
 
 class ProfileProvider extends ChangeNotifier {
@@ -44,10 +45,12 @@ class ProfileProvider extends ChangeNotifier {
     data['idPasajero'] = _auth.userId;
     try {
       final res = await _api.post('/ActualizarPerfil', body: data);
+      Logger.i('Profile', 'actualizarPerfil: success=${res.success} msg=${res.message}');
       _loading = false;
       notifyListeners();
       return res.success;
     } catch (e) {
+      Logger.e('Profile', 'actualizarPerfil exception: $e');
       _loading = false;
       notifyListeners();
       return false;
@@ -61,14 +64,29 @@ class ProfileProvider extends ChangeNotifier {
       final res = await _api.post('/CambiarPassword', body: {
         'idPasajero': _auth.userId,
         'passActual': passActual,
-        'passNuevo': passNuevo,
+        'pass': passNuevo,
       });
+      Logger.i('Profile', 'cambiarPassword: success=${res.success} res=${res.getResultado()}');
       _loading = false;
       notifyListeners();
       return res.success && res.getResultado() == 1;
     } catch (e) {
+      Logger.e('Profile', 'cambiarPassword exception: $e');
       _loading = false;
       notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> enviarCodigoVerificacion() async {
+    try {
+      final res = await _api.post('/EnviarCodigoVerificacion', body: {
+        'idPasajero': _auth.userId,
+      });
+      Logger.i('Profile', 'enviarCodigo: success=${res.success}');
+      return res.success;
+    } catch (e) {
+      Logger.e('Profile', 'enviarCodigo exception: $e');
       return false;
     }
   }
