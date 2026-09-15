@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../config/theme.dart';
+import 'home_screen.dart';
 
 class RatingScreen extends StatefulWidget {
   const RatingScreen({super.key});
@@ -50,7 +51,7 @@ class _RatingScreenState extends State<RatingScreen> {
     if (success) {
       rideProv.clearCurrentRide();
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const _HomePlaceholder()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
     } else {
@@ -66,7 +67,7 @@ class _RatingScreenState extends State<RatingScreen> {
   void _skip() {
     context.read<RideProvider>().clearCurrentRide();
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const _HomePlaceholder()),
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
       (route) => false,
     );
   }
@@ -201,13 +202,4 @@ class _RatingScreenState extends State<RatingScreen> {
   }
 }
 
-class _HomePlaceholder extends StatelessWidget {
-  const _HomePlaceholder();
 
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Regresando al inicio...')),
-    );
-  }
-}

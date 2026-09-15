@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../models/ride_model.dart';
 import '../../config/theme.dart';
-
+import 'trip_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -148,7 +148,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => const SizedBox.shrink(),
+              builder: (_) => TripDetailScreen(idServicio: ride.id),
             ),
           );
         },

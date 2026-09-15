@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/chat_provider.dart';
 import '../../models/mensaje_chat_model.dart';
 import '../../config/theme.dart';
@@ -26,6 +27,18 @@ class _ChatScreenState extends State<ChatScreen> {
   final _messageCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _focusNode = FocusNode();
+  bool _showTemplates = false;
+
+  static const List<String> _messageTemplates = [
+    'Estoy en la puerta principal',
+    'Llegue, ya puedes salir',
+    'Espera, voy en camino',
+    'Por favor toca el claxon',
+    'No encuentro la direccion, me puedes orientar?',
+    'Tengo una pregunta sobre el viaje',
+    'Todo bien, gracias',
+    'Cancelar',
+  ];
 
   @override
   void initState() {
@@ -58,13 +71,36 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  Future<void> _enviarMensaje() async {
-    final text = _messageCtrl.text.trim();
-    if (text.isEmpty) return;
-    _messageCtrl.clear();
+  Future<void> _enviarMensaje({String? text}) async {
+    final msg = text ?? _messageCtrl.text.trim();
+    if (msg.isEmpty) return;
+    if (text == null) _messageCtrl.clear();
     _focusNode.requestFocus();
-    await context.read<ChatProvider>().enviarMensaje(widget.idServicio, text);
+    await context.read<ChatProvider>().enviarMensaje(widget.idServicio, msg);
     _scrollToBottom();
+  }
+
+  void _selectTemplate(String template) {
+    if (template == 'Cancelar') {
+      setState(() => _showTemplates = false);
+      return;
+    }
+    _enviarMensaje(text: template);
+    setState(() => _showTemplates = false);
+  }
+
+  Future<void> _callConductor() async {
+    final phone = widget.conductorTelefono;
+    if (phone == null || phone.isEmpty) return;
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se puede realizar la llamada'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -106,9 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (widget.conductorTelefono != null)
             IconButton(
               icon: const Icon(Icons.phone, color: AppTheme.primary),
-              onPressed: () {
-                // TODO: launch phone dialer
-              },
+              onPressed: _callConductor,
             ),
         ],
       ),
@@ -154,6 +188,60 @@ class _ChatScreenState extends State<ChatScreen> {
                         },
                       ),
           ),
+          if (_showTemplates) ...[
+            Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              color: Colors.white,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Mensajes rapidos',
+                          style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textMedium,
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => setState(() => _showTemplates = false),
+                          child: Icon(Icons.close, size: 18, color: AppTheme.textLight),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _messageTemplates.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
+                      itemBuilder: (_, i) {
+                        final t = _messageTemplates[i];
+                        if (t == 'Cancelar') {
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(Icons.cancel_outlined, size: 18, color: AppTheme.textMedium),
+                            title: Text(t, style: TextStyle(color: AppTheme.danger, fontSize: 14)),
+                            onTap: () => _selectTemplate(t),
+                          );
+                        }
+                        return ListTile(
+                          dense: true,
+                          leading: Icon(Icons.chat_bubble_outline, size: 18, color: AppTheme.textMedium),
+                          title: Text(t, style: const TextStyle(fontSize: 14)),
+                          onTap: () => _selectTemplate(t),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
             decoration: const BoxDecoration(
@@ -162,6 +250,13 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             child: Row(
               children: [
+                IconButton(
+                  icon: Icon(
+                    _showTemplates ? Icons.close : Icons.add_circle_outline,
+                    color: AppTheme.primary,
+                  ),
+                  onPressed: () => setState(() => _showTemplates = !_showTemplates),
+                ),
                 Expanded(
                   child: TextField(
                     controller: _messageCtrl,
@@ -189,7 +284,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   radius: 22,
                   child: IconButton(
                     icon: const Icon(Icons.send, size: 18, color: Colors.white),
-                    onPressed: _enviarMensaje,
+                    onPressed: () => _enviarMensaje(),
                   ),
                 ),
               ],

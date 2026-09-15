@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../widgets/vaia_widgets.dart';
 import 'service_request_screen.dart';
 import 'login_screen.dart';
 
@@ -30,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _initLocation();
-    _loadDrivers();
     context.read<ProfileProvider>().cargarFavoritos();
   }
 
@@ -121,7 +121,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _navigateToServiceRequest() {
     if (_currentPosition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Obteniendo ubicacion...')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Obteniendo ubicacion...')),
+      );
       return;
     }
     Navigator.of(context).push(
@@ -135,28 +137,53 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showMenuSheet() {
-    final isDark = context.read<ThemeProvider>().isDarkMode;
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(color: isDark ? AppTheme.darkBorder : AppTheme.border, borderRadius: BorderRadius.circular(2)),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              const SizedBox(height: 16),
-              _menuTile(ctx, Icons.person_outline, 'Mi Perfil', () => Navigator.pushNamed(context, '/profile')),
-              _menuTile(ctx, Icons.star_outline, 'Favoritos', () => Navigator.pushNamed(context, '/favorites')),
-              _menuTile(ctx, Icons.history, 'Historial', () => Navigator.pushNamed(context, '/history')),
-              _menuTile(ctx, Icons.confirmation_number_outlined, 'Promociones', () => Navigator.pushNamed(context, '/promotions')),
-              _menuTile(ctx, Icons.support_agent_outlined, 'Soporte', () => _showComingSoon(context)),
-              const Divider(),
-              _menuTile(ctx, Icons.logout, 'Cerrar Sesion', () {
+              const SizedBox(height: 12),
+              _menuTile(ctx, Icons.person_outline_rounded, 'Mi Perfil',
+                  () => Navigator.pushNamed(context, '/profile')),
+              _menuTile(ctx, Icons.star_outline_rounded, 'Favoritos',
+                  () => Navigator.pushNamed(context, '/favorites')),
+              _menuTile(ctx, Icons.history_rounded, 'Historial',
+                  () => Navigator.pushNamed(context, '/history')),
+              _menuTile(ctx, Icons.confirmation_number_outlined, 'Promociones',
+                  () => Navigator.pushNamed(context, '/promotions')),
+              _menuTile(ctx, Icons.schedule_rounded, 'Viajes programados',
+                  () => Navigator.pushNamed(context, '/scheduled-rides')),
+              _menuTile(ctx, Icons.support_agent_rounded, 'Soporte en linea', () {
+                final ride = context.read<RideProvider>();
+                if (ride.currentRide != null) {
+                  Navigator.pushNamed(context, '/support-chat',
+                      arguments: {'idServicio': ride.currentRide!.id});
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('El soporte esta disponible durante un servicio activo'),
+                    backgroundColor: VaiaColors.warning,
+                  ));
+                }
+              }),
+              _menuTile(ctx, Icons.settings_outlined, 'Configuracion',
+                  () => Navigator.pushNamed(context, '/settings')),
+              const Divider(height: 1),
+              _menuTile(ctx, Icons.logout_rounded, 'Cerrar sesion', () {
                 context.read<AuthProvider>().logout();
                 Navigator.of(ctx).pop();
                 Navigator.of(context).pushAndRemoveUntil(
@@ -171,22 +198,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Proximamente...'), backgroundColor: AppTheme.primary),
-    );
-  }
-
   Widget _menuTile(BuildContext ctx, IconData icon, String title, VoidCallback onTap) {
-    final isDark = context.read<ThemeProvider>().isDarkMode;
     return ListTile(
-      leading: Icon(icon, color: isDark ? AppTheme.darkTextPrimary : AppTheme.textDark),
-      title: Text(title, style: TextStyle(fontSize: 15, color: isDark ? AppTheme.darkTextPrimary : AppTheme.textDark)),
-      trailing: Icon(Icons.chevron_right, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textLight),
+      leading: Icon(icon, color: VaiaColors.textSecondary),
+      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+      trailing: const Icon(Icons.chevron_right_rounded, color: VaiaColors.textMuted),
       onTap: () {
         Navigator.of(ctx).pop();
         onTap();
       },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.sm)),
     );
   }
 
@@ -195,85 +216,79 @@ class _HomeScreenState extends State<HomeScreen> {
     final profile = context.watch<ProfileProvider>();
     final rideProv = context.watch<RideProvider>();
     final themeProv = context.watch<ThemeProvider>();
-    final isDark = themeProv.isDarkMode;
 
     return Scaffold(
       body: Stack(
         children: [
-          _buildMapArea(isDark),
+          _buildMapArea(),
           if (_locationLoading)
             Positioned(
-              top: 60, left: 0, right: 0,
+              top: 60,
+              left: 0,
+              right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isDark ? AppTheme.darkCard : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)],
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(VaiaRadius.pill),
+                    boxShadow: VaiaShadows.card,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        width: 14, height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: VaiaColors.primary),
                       ),
                       const SizedBox(width: 8),
-                      Text('Obteniendo ubicacion...', style: TextStyle(fontSize: 12, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textMedium)),
+                      Text(
+                        'Obteniendo ubicacion...',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
           Positioned(
-            top: 50, left: 16,
-            child: GestureDetector(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 16,
+            child: _floatingButton(
+              icon: Icons.menu_rounded,
               onTap: _showMenuSheet,
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTheme.darkCard : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
-                ),
-                child: Icon(Icons.menu, color: isDark ? AppTheme.darkTextPrimary : AppTheme.textDark),
-              ),
             ),
           ),
           Positioned(
-            top: 50, right: 16,
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 16,
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                GestureDetector(
+                _floatingButton(
+                  icon: themeProv.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                   onTap: () => themeProv.toggleTheme(),
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppTheme.darkCard : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
-                    ),
-                    child: Icon(isDark ? Icons.light_mode : Icons.dark_mode, color: isDark ? AppTheme.secondary : AppTheme.textDark),
-                  ),
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isDark ? AppTheme.darkCard : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(VaiaRadius.pill),
+                    boxShadow: VaiaShadows.card,
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.directions_car_rounded, size: 18, color: AppTheme.primary),
-                      const SizedBox(width: 6),
+                      const VaiaLogo(size: 18, color: VaiaColors.primary),
+                      const SizedBox(width: 8),
                       Text(
-                        'Vaia Viajes',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? AppTheme.darkTextPrimary : AppTheme.textDark),
+                        'Vaia',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: VaiaColors.primary,
+                          letterSpacing: -0.2,
+                        ),
                       ),
                     ],
                   ),
@@ -281,32 +296,32 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomPanel(profile, rideProv, isDark)),
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomPanel(profile, rideProv)),
           Positioned(
-            bottom: 220, right: 16,
+            bottom: 250,
+            right: 16,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                FloatingActionButton.small(
-                  heroTag: 'location',
-                  backgroundColor: isDark ? AppTheme.darkCard : Colors.white,
-                  onPressed: () {
+                _floatingButton(
+                  icon: Icons.my_location_rounded,
+                  onTap: () {
                     if (_currentPosition != null) {
                       _animateTo(_currentPosition!.latitude, _currentPosition!.longitude);
                     }
                   },
-                  child: Icon(Icons.my_location, color: isDark ? AppTheme.darkTextPrimary : AppTheme.textDark),
                 ),
                 const SizedBox(height: 8),
-                FloatingActionButton(
+                FloatingActionButton.small(
                   heroTag: 'sos',
-                  backgroundColor: AppTheme.danger,
+                  backgroundColor: VaiaColors.danger,
+                  foregroundColor: Colors.white,
+                  elevation: 4,
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('SOS - Alarma enviada'), backgroundColor: Colors.red),
+                      const SnackBar(content: Text('SOS - Alarma enviada')),
                     );
                   },
-                  child: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                  child: const Icon(Icons.shield_rounded, size: 18),
                 ),
               ],
             ),
@@ -316,36 +331,58 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMapArea(bool isDark) {
+  Widget _floatingButton({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(VaiaRadius.md),
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.08),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        child: Container(
+          width: 42,
+          height: 42,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 20, color: VaiaColors.textPrimary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapArea() {
     if (_mapError || _currentPosition == null) {
       return Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? [const Color(0xFF1A237E), const Color(0xFF121212)]
-                : [AppTheme.primaryLight.withValues(alpha: 0.3), AppTheme.bgLight],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: VaiaColors.heroGradient),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.map_outlined, size: 80, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textLight),
+              Icon(
+                Icons.map_outlined,
+                size: 80,
+                color: Colors.white.withOpacity(0.7),
+              ),
               const SizedBox(height: 16),
               Text(
                 _currentPosition == null
                     ? 'Ubicacion no disponible'
                     : 'Mapa no disponible',
-                style: TextStyle(fontSize: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textMedium),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                'Usa el boton de abajo para solicitar un viaje',
-                style: TextStyle(fontSize: 13, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textLight),
+                'Solicita un viaje para empezar',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white.withOpacity(0.85),
+                ),
               ),
             ],
           ),
@@ -368,16 +405,19 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } catch (_) {
       return Container(
-        width: double.infinity, height: double.infinity,
-        color: isDark ? AppTheme.darkBg : AppTheme.bgLight,
+        width: double.infinity,
+        height: double.infinity,
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.map_outlined, size: 80, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textLight),
+              Icon(Icons.map_outlined, size: 80, color: VaiaColors.textMuted),
               const SizedBox(height: 16),
-              Text('Mapa no disponible en esta plataforma',
-                style: TextStyle(fontSize: 18, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textMedium)),
+              Text(
+                'Mapa no disponible',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ],
           ),
         ),
@@ -385,67 +425,73 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildBottomPanel(ProfileProvider profile, RideProvider rideProv, bool isDark) {
+  Widget _buildBottomPanel(ProfileProvider profile, RideProvider rideProv) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkSurface : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, -4)),
+          BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 24, offset: const Offset(0, -6)),
         ],
       ),
       child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(color: isDark ? AppTheme.darkBorder : AppTheme.border, borderRadius: BorderRadius.circular(2)),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _navigateToServiceRequest,
-                  icon: const Icon(Icons.search),
-                  label: const Text('A donde vamos?', style: TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              const SizedBox(height: 14),
+              GestureDetector(
+                onTap: _navigateToServiceRequest,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    borderRadius: BorderRadius.circular(VaiaRadius.md),
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.search_rounded, color: VaiaColors.primary, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        'A donde vamos?',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: VaiaColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
               if (profile.favoritos.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 36,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: profile.favoritos.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (ctx, i) {
-                      final f = profile.favoritos[i];
-                      return ActionChip(
-                        avatar: const Icon(Icons.star, size: 16, color: AppTheme.secondary),
-                        label: Text(f.nombre, style: const TextStyle(fontSize: 12)),
-                        onPressed: _navigateToServiceRequest,
-                      );
-                    },
-                  ),
-                ),
+                const SizedBox(height: 14),
+                _favoritosList(profile),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _quickAction(Icons.person_outline, 'Perfil', () => Navigator.pushNamed(context, '/profile')),
-                  _quickAction(Icons.star_outline, 'Favoritos', () => Navigator.pushNamed(context, '/favorites')),
-                  _quickAction(Icons.history, 'Historial', () => Navigator.pushNamed(context, '/history')),
-                  _quickAction(Icons.confirmation_number_outlined, 'Promos', () => Navigator.pushNamed(context, '/promotions'), AppTheme.secondary, isDark),
+                  _quickAction(Icons.person_outline_rounded, 'Perfil',
+                      () => Navigator.pushNamed(context, '/profile')),
+                  _quickAction(Icons.star_outline_rounded, 'Favoritos',
+                      () => Navigator.pushNamed(context, '/favorites')),
+                  _quickAction(Icons.history_rounded, 'Historial',
+                      () => Navigator.pushNamed(context, '/history')),
+                  _quickAction(Icons.local_offer_outlined, 'Promos',
+                      () => Navigator.pushNamed(context, '/promotions'),
+                      accent: VaiaColors.accent),
                 ],
               ),
               const SizedBox(height: 4),
@@ -456,27 +502,77 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _quickAction(IconData icon, String label, VoidCallback onTap, [Color? iconColor, bool isDark = false]) {
-    final color = iconColor ?? (isDark ? AppTheme.darkTextPrimary : AppTheme.textDark);
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-              color: isDark ? AppTheme.darkCard : AppTheme.bgLight,
-              borderRadius: BorderRadius.circular(12),
+  Widget _favoritosList(ProfileProvider profile) {
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: profile.favoritos.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (ctx, i) {
+          final f = profile.favoritos[i];
+          return Material(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(VaiaRadius.pill),
+            child: InkWell(
+              onTap: _navigateToServiceRequest,
+              borderRadius: BorderRadius.circular(VaiaRadius.pill),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                  borderRadius: BorderRadius.circular(VaiaRadius.pill),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star_rounded, size: 14, color: VaiaColors.accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      f.nombre,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            child: Icon(icon, color: color, size: 24),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _quickAction(IconData icon, String label, VoidCallback onTap, {Color? accent}) {
+    final c = accent ?? VaiaColors.textSecondary;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(VaiaRadius.md),
+                ),
+                child: Icon(icon, color: c, size: 22),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: VaiaColors.textSecondary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 11, color: isDark ? AppTheme.darkTextSecondary : AppTheme.textMedium, fontWeight: FontWeight.w500),
-          ),
-        ],
+        ),
       ),
     );
   }

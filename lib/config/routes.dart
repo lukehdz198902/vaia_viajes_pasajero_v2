@@ -3,7 +3,6 @@ import '../screens/splash_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/home_screen.dart';
-import '../screens/service_request_screen.dart';
 import '../screens/service_status_screen.dart';
 import '../screens/rating_screen.dart';
 import '../screens/profile_screen.dart';
@@ -15,6 +14,9 @@ import '../screens/settings_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/report_incident_screen.dart';
 import '../screens/recover_password_screen.dart';
+import '../screens/scheduled_rides_screen.dart';
+import '../screens/schedule_ride_screen.dart';
+import '../screens/support_chat_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -33,6 +35,9 @@ class AppRoutes {
   static const String chat = '/chat';
   static const String reportIncident = '/report-incident';
   static const String recoverPassword = '/recover-password';
+  static const String scheduledRides = '/scheduled-rides';
+  static const String scheduleRide = '/schedule-ride';
+  static const String supportChat = '/support-chat';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -40,13 +45,14 @@ class AppRoutes {
       login: (_) => const LoginScreen(),
       register: (_) => const RegisterScreen(),
       home: (_) => const HomeScreen(),
-      serviceRequest: (_) => const ServiceRequestScreen(currentLat: 0, currentLng: 0),
       profile: (_) => const ProfileScreen(),
       favorites: (_) => const FavoritesScreen(),
       history: (_) => const HistoryScreen(),
       promotions: (_) => const PromotionsScreen(),
       settings: (_) => const SettingsScreen(),
       recoverPassword: (_) => const RecoverPasswordScreen(),
+      scheduledRides: (_) => const ScheduledRidesScreen(),
+      scheduleRide: (_) => const ScheduleRideScreen(),
     };
   }
 
@@ -71,6 +77,13 @@ class AppRoutes {
       case reportIncident:
         return MaterialPageRoute(
           builder: (_) => ReportIncidentScreen(idServicio: args['idServicio']),
+        );
+      case supportChat:
+        return MaterialPageRoute(
+          builder: (_) => SupportChatScreen(
+            idServicio: args['idServicio'] ?? 0,
+            idSolicitudExistente: args['idSolicitudExistente'],
+          ),
         );
       default:
         return MaterialPageRoute(builder: (_) => const SplashScreen());

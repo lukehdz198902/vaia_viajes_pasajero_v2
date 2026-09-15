@@ -126,6 +126,32 @@ class RideModel {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'idconductor': idConductor,
+      'idpasajero': idPasajero,
+      'idservicioestatus': idServicioEstatus,
+      'estatus': estatus,
+      'direccionorigen': direccionOrigen,
+      'latorigen': latOrigen,
+      'lngorigen': lngOrigen,
+      'direcciondestination': direccionDestino,
+      'latdestination': latDestino,
+      'lngdestination': lngDestino,
+      'costoestimado': costoEstimado,
+      'distanciametros': distanciaMetros,
+      'durationsegundos': duracionSegundos,
+      'tipoviaje': tipoviaje,
+      'servicioiniciado': servicioIniciado,
+      'unidad': unidad,
+      'placas': placas,
+      'c_nombre': conductor?.nombre,
+      'c_appaterno': conductor?.appaterno,
+      'c_tel': conductor?.telefono,
+    };
+  }
+
   static double _toDouble(dynamic v) {
     if (v == null) return 0;
     if (v is double) return v;

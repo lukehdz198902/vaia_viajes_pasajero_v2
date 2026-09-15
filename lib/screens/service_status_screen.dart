@@ -1,12 +1,13 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ride_provider.dart';
 import '../../config/theme.dart';
 import '../../models/ride_model.dart';
 import 'rating_screen.dart';
 import 'chat_screen.dart';
+import 'report_incident_screen.dart';
 
 class ServiceStatusScreen extends StatefulWidget {
   const ServiceStatusScreen({super.key});
@@ -16,33 +17,40 @@ class ServiceStatusScreen extends StatefulWidget {
 }
 
 class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
-  Timer? _pollTimer;
   final Set<Marker> _markers = {};
+  final _codeController = TextEditingController();
+  bool _showStartCodeInput = false;
+  bool _isStartingService = false;
 
   @override
   void initState() {
     super.initState();
-    _startPolling();
-    _updateMap();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkFinished();
+      _updateMap();
+      final ride = context.read<RideProvider>().currentRide;
+      if (ride != null) context.read<RideProvider>().listarParadas(ride.id);
+    });
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    _codeController.dispose();
     super.dispose();
   }
 
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted) return;
-      final ride = context.read<RideProvider>();
-      final estatus = ride.currentRide?.estatus?.toLowerCase() ?? '';
-      if (estatus == 'finalizado') {
-        _pollTimer?.cancel();
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RatingScreen()));
-      }
-    });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updateMap();
+  }
+
+  void _checkFinished() {
+    final ride = context.read<RideProvider>().currentRide;
+    if (ride != null && (ride.estatus?.toLowerCase() == 'finalizado')) {
+      context.read<RideProvider>().stopPolling();
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RatingScreen()));
+    }
   }
 
   void _updateMap() {
@@ -120,6 +128,65 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     }
   }
 
+  Future<void> _callConductor(String? phone) async {
+    if (phone == null || phone.isEmpty) return;
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se puede realizar la llamada'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _iniciarServicio() async {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) return;
+    setState(() => _isStartingService = true);
+    final ride = context.read<RideProvider>();
+    final success = await ride.iniciarServicio(ride.currentRide!.id, code);
+    if (!mounted) return;
+    setState(() => _isStartingService = false);
+    if (success) {
+      setState(() => _showStartCodeInput = false);
+      _codeController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Viaje iniciado'), backgroundColor: Colors.green),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ride.error ?? 'Codigo incorrecto'), backgroundColor: AppTheme.danger),
+      );
+    }
+  }
+
+  Future<void> _finalizarViaje() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Finalizar Viaje'),
+        content: const Text('Confirmas que has llegado a tu destino?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Si, finalizar', style: TextStyle(color: AppTheme.accent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      final ride = context.read<RideProvider>();
+      if (ride.currentRide != null) {
+        ride.stopPolling();
+        ride.clearCurrentRide();
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RatingScreen()));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ride = context.watch<RideProvider>().currentRide;
@@ -131,16 +198,26 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       );
     }
 
+    if (ride.estatus?.toLowerCase() == 'finalizado') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<RideProvider>().stopPolling();
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RatingScreen()));
+      });
+      return Scaffold(
+        appBar: AppBar(title: const Text('Tu Viaje')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final cond = ride.conductor;
     final estatus = ride.estatus ?? '';
+    final isEnCamino = estatus.toLowerCase() == 'en camino';
+    final isEnViaje = estatus.toLowerCase() == 'en viaje';
 
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) {
-          context.read<RideProvider>().stopPolling();
-          _pollTimer?.cancel();
-        }
+        if (didPop) context.read<RideProvider>().stopPolling();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -149,7 +226,6 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
               context.read<RideProvider>().stopPolling();
-              _pollTimer?.cancel();
               Navigator.of(context).pop();
             },
           ),
@@ -157,7 +233,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
         body: Column(
           children: [
             Expanded(flex: 3, child: _buildMapSection(ride)),
-            Expanded(flex: 2, child: _buildBottomPanel(ride, cond, estatus)),
+            Expanded(flex: 2, child: _buildBottomPanel(ride, cond, estatus, isEnCamino, isEnViaje)),
           ],
         ),
       ),
@@ -177,8 +253,8 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     );
   }
 
-  Widget _buildBottomPanel(RideModel ride, dynamic cond, String estatus) {
-    final isCancelable = estatus.toLowerCase() == 'solicitado' || estatus.toLowerCase() == 'en camino';
+  Widget _buildBottomPanel(RideModel ride, dynamic cond, String estatus, bool isEnCamino, bool isEnViaje) {
+    final isCancelable = estatus.toLowerCase() == 'solicitado' || isEnCamino;
 
     return Container(
       decoration: BoxDecoration(
@@ -191,191 +267,376 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppTheme.bgLight,
-                    child: cond?.fotoperfil != null
-                        ? ClipOval(
-                            child: Image.network(
-                              cond!.fotoperfil!,
-                              width: 56,
-                              height: 56,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Icon(Icons.person, color: AppTheme.textLight, size: 28),
-                            ),
-                          )
-                        : Icon(Icons.person, color: AppTheme.textLight, size: 28),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          cond?.nombreCompleto ?? 'Conductor asignado...',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textDark),
-                        ),
-                        if (cond != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            '${cond.unidad ?? ''} ${cond.placas ?? ''}'.trim(),
-                            style: TextStyle(fontSize: 13, color: AppTheme.textMedium),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (cond?.calificacion != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.secondary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star, size: 14, color: AppTheme.secondary),
-                          const SizedBox(width: 4),
-                          Text(
-                            cond!.calificacion!.toStringAsFixed(1),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textDark),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.timer_outlined, size: 16, color: AppTheme.textMedium),
-                  const SizedBox(width: 4),
-                  Text(
-                    ride.duracionSegundos != null
-                        ? '${(ride.duracionSegundos! / 60).ceil()} min restantes'
-                        : 'Calculando tiempo...',
-                    style: TextStyle(fontSize: 13, color: AppTheme.textMedium),
-                  ),
-                  const SizedBox(width: 16),
-                  Icon(Icons.route_outlined, size: 16, color: AppTheme.textMedium),
-                  const SizedBox(width: 4),
-                  Text(ride.distanciaFormateada, style: TextStyle(fontSize: 13, color: AppTheme.textMedium)),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _statusColor(estatus).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _statusLabel(estatus),
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _statusColor(estatus)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  if (cond != null) ...[
-                    Expanded(
-                      child: _actionButton(
-                        icon: Icons.chat_bubble_outline,
-                        label: 'Chat',
-                        color: AppTheme.primary,
-                        onTap: () {
-                          final ride = context.read<RideProvider>().currentRide;
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ChatScreen(
-                                idServicio: ride?.id ?? 0,
-                                conductorNombre: ride?.conductorNombre ?? 'Conductor',
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2)),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: AppTheme.bgLight,
+                      child: cond?.fotoperfil != null
+                          ? ClipOval(
+                              child: Image.network(
+                                cond!.fotoperfil!,
+                                width: 56,
+                                height: 56,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Icon(Icons.person, color: AppTheme.textLight, size: 28),
                               ),
-                            ),
-                          );
-                        },
-                      ),
+                            )
+                          : Icon(Icons.person, color: AppTheme.textLight, size: 28),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: _actionButton(
-                        icon: Icons.phone_outlined,
-                        label: 'Llamar',
-                        color: AppTheme.accent,
-                        onTap: () {
-                          // Launch phone dial
-                        },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            cond?.nombreCompleto ?? 'Conductor asignado...',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textDark),
+                          ),
+                          if (cond != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${cond.unidad ?? ''} ${cond.placas ?? ''}'.trim(),
+                              style: TextStyle(fontSize: 13, color: AppTheme.textMedium),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ],
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _actionButton(
-                      icon: Icons.warning_amber_rounded,
-                      label: 'SOS',
-                      color: AppTheme.danger,
-                      onTap: () async {
-                        final rideProv = context.read<RideProvider>();
-                        if (rideProv.currentRide != null) {
-                          await rideProv.activarAlarmaSOS(rideProv.currentRide!.id);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Alarma SOS enviada'), backgroundColor: Colors.red),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              if (isCancelable) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Cancelar Servicio'),
-                          content: const Text('Estas seguro de cancelar este servicio?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(true),
-                              child: Text('Si, cancelar', style: TextStyle(color: AppTheme.danger)),
+                    if (cond?.calificacion != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.secondary.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, size: 14, color: AppTheme.secondary),
+                            const SizedBox(width: 4),
+                            Text(
+                              cond!.calificacion!.toStringAsFixed(1),
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textDark),
                             ),
                           ],
                         ),
-                      );
-                      if (confirmed == true && mounted) {
-                        await context.read<RideProvider>().cancelarServicio();
-                        if (mounted) Navigator.of(context).pop();
-                      }
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.danger,
-                      side: const BorderSide(color: AppTheme.danger),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.timer_outlined, size: 16, color: AppTheme.textMedium),
+                    const SizedBox(width: 4),
+                    Text(
+                      ride.duracionSegundos != null
+                          ? '${(ride.duracionSegundos! / 60).ceil()} min restantes'
+                          : 'Calculando tiempo...',
+                      style: TextStyle(fontSize: 13, color: AppTheme.textMedium),
                     ),
-                    child: const Text('Cancelar Servicio'),
+                    const SizedBox(width: 16),
+                    Icon(Icons.route_outlined, size: 16, color: AppTheme.textMedium),
+                    const SizedBox(width: 4),
+                    Text(ride.distanciaFormateada, style: TextStyle(fontSize: 13, color: AppTheme.textMedium)),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _statusColor(estatus).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _statusLabel(estatus),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _statusColor(estatus)),
+                      ),
+                    ),
+                  ],
+                ),
+                if (context.watch<RideProvider>().paradas.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildParadasPanel(),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    if (cond != null) ...[
+                      Expanded(
+                        child: _actionButton(
+                          icon: Icons.chat_bubble_outline,
+                          label: 'Chat',
+                          color: AppTheme.primary,
+                          onTap: () {
+                            final ride = context.read<RideProvider>().currentRide;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  idServicio: ride?.id ?? 0,
+                                  conductorNombre: ride?.conductorNombre ?? 'Conductor',
+                                  conductorFoto: cond?.fotoperfil,
+                                  conductorTelefono: cond?.telefono,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _actionButton(
+                          icon: Icons.phone_outlined,
+                          label: 'Llamar',
+                          color: AppTheme.accent,
+                          onTap: () => _callConductor(cond?.telefono),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: GestureDetector(
+                        onLongPress: () async {
+                          final rideProv = context.read<RideProvider>();
+                          if (rideProv.currentRide != null) {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Enviar SOS'),
+                                content: const Text('Se enviara una alerta de emergencia. Deseas continuar?'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(ctx).pop(true),
+                                    child: Text('Enviar SOS', style: TextStyle(color: AppTheme.danger)),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed == true && mounted) {
+                              await rideProv.activarAlarmaSOS(rideProv.currentRide!.id);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Alarma SOS enviada'), backgroundColor: Colors.red),
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.danger.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: AppTheme.danger, size: 22),
+                              const SizedBox(height: 4),
+                              Text(
+                                'SOS',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.danger),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (isEnCamino && !_showStartCodeInput) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => setState(() => _showStartCodeInput = true),
+                      icon: const Icon(Icons.vpn_key_outlined),
+                      label: const Text('Ingresar codigo de inicio'),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                    ),
                   ),
+                ],
+                if (_showStartCodeInput) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _codeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Codigo de inicio',
+                            hintText: 'Ingresa el codigo del conductor',
+                            prefixIcon: Icon(Icons.vpn_key_outlined),
+                          ),
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _iniciarServicio(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _isStartingService ? null : _iniciarServicio,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        child: _isStartingService
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Iniciar'),
+                      ),
+                    ],
+                  ),
+                ],
+                if (isEnViaje) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _finalizarViaje,
+                      icon: const Icon(Icons.flag_outlined),
+                      label: const Text('Llegue a mi destino'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accent,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+                if (isCancelable) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Cancelar Servicio'),
+                            content: const Text('Estas seguro de cancelar este servicio?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(true),
+                                child: Text('Si, cancelar', style: TextStyle(color: AppTheme.danger)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true && mounted) {
+                          await context.read<RideProvider>().cancelarServicio();
+                          if (mounted) Navigator.of(context).pop();
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.danger,
+                        side: const BorderSide(color: AppTheme.danger),
+                      ),
+                      child: const Text('Cancelar Servicio'),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ReportIncidentScreen(idServicio: ride.id),
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.report_problem_outlined, size: 18, color: AppTheme.textMedium),
+                        label: Text(
+                          'Incidente',
+                          style: TextStyle(color: AppTheme.textMedium, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pushNamed(
+                            '/support-chat',
+                            arguments: {'idServicio': ride.id},
+                          );
+                        },
+                        icon: const Icon(Icons.support_agent_rounded, size: 18, color: AppTheme.primary),
+                        label: const Text(
+                          'Soporte',
+                          style: TextStyle(color: AppTheme.primary, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildParadasPanel() {
+    final paradas = context.watch<RideProvider>().paradas;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.alt_route, size: 16, color: Colors.orange.shade800),
+              const SizedBox(width: 6),
+              Text(
+                'Paradas intermedias (${paradas.where((p) => p.completada).length}/${paradas.length})',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.orange.shade900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...paradas.map((p) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      p.completada ? Icons.check_circle : Icons.radio_button_unchecked,
+                      size: 16,
+                      color: p.completada ? AppTheme.accent : Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${p.orden}. ${p.direccion}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          decoration: p.completada ? TextDecoration.lineThrough : null,
+                          color: p.completada ? AppTheme.textLight : AppTheme.textDark,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
       ),
     );
   }

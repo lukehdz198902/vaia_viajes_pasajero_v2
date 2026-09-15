@@ -3,17 +3,30 @@ class ApiResponse {
   final dynamic data;
   final String? message;
   final int? statusCode;
+  final String? errorCode;
 
-  ApiResponse({required this.success, this.data, this.message, this.statusCode});
+  ApiResponse({
+    required this.success,
+    this.data,
+    this.message,
+    this.statusCode,
+    this.errorCode,
+  });
 
-  factory ApiResponse.ok(dynamic data) => ApiResponse(success: true, data: data);
-  factory ApiResponse.error(String msg, {int? code}) =>
-      ApiResponse(success: false, message: msg, statusCode: code);
+  factory ApiResponse.ok(dynamic data, {String? message}) =>
+      ApiResponse(success: true, data: data, message: message);
+
+  factory ApiResponse.error(String msg, {int? code, String? errorCode}) =>
+      ApiResponse(success: false, message: msg, statusCode: code, errorCode: errorCode);
 
   bool get isList => data is List;
   bool get isMap => data is Map;
-  List<dynamic> get list => data as List<dynamic>? ?? [];
-  Map<String, dynamic> get map => data as Map<String, dynamic>? ?? {};
+  List<dynamic> get list => data is List ? data : (data is Map ? (data['data'] is List ? data['data'] : <dynamic>[]) : <dynamic>[]);
+  Map<String, dynamic> get map {
+    if (data is Map<String, dynamic>) return data as Map<String, dynamic>;
+    if (data is Map && (data as Map).isNotEmpty) return Map<String, dynamic>.from(data as Map);
+    return <String, dynamic>{};
+  }
 
   dynamic firstOrNull() {
     if (data is List && data.length > 0) return data[0];
@@ -28,9 +41,10 @@ class ApiResponse {
   }
 
   String getMensaje() {
+    if (message != null && message!.isNotEmpty) return message!;
     var item = firstOrNull();
-    if (item is Map) return item['mensaje'] ?? item['Mensaje'] ?? message ?? '';
-    return message ?? '';
+    if (item is Map) return item['mensaje'] ?? item['Mensaje'] ?? '';
+    return '';
   }
 
   int? getNuevoId() {

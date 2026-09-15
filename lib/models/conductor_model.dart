@@ -44,13 +44,13 @@ class ConductorModel {
       telefono: json['telefono'] ?? json['Telefono'],
       correo: json['correo'] ?? json['Correo'],
       fotoperfil: json['fotoperfil'] ?? json['Fotoperfil'],
-      calificacion: json['calificacionpromedio'] ?? json['Calificacionpromedio'],
+      calificacion: json['calificacionpromedio'] ?? json['Calificacionpromedio'] ?? json['calificacion'] ?? json['Calificacion'],
       totalViajes: json['totalviajes'] ?? json['Totalviajes'],
       unidad: json['unidad'] ?? json['Unidad'],
       placas: json['placas'] ?? json['Placas'],
       colorUnidad: json['colorhex'] ?? json['Colorhex'],
-      lat: json['ultimalat'] ?? json['Ultimalat'],
-      lng: json['ultimalng'] ?? json['Ultimalng'],
+      lat: json['ultimalat'] ?? json['Ultimalat'] ?? json['lat'] ?? json['Lat'],
+      lng: json['ultimalng'] ?? json['Ultimalng'] ?? json['lng'] ?? json['Lng'],
       distanciaKm: (json['distancia_km'] ?? json['DistanciaKm'])?.toDouble(),
     );
   }

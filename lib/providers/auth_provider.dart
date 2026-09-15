@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/signalr_service.dart';
 import '../services/logger.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _api;
   final StorageService _storage;
+  final SignalRService _signalr;
 
-  AuthProvider(this._api, this._storage);
+  AuthProvider(this._api, this._storage, this._signalr);
 
   UserModel? _user;
   bool _loading = false;
@@ -40,6 +42,12 @@ class AuthProvider extends ChangeNotifier {
         Logger.i('Auth', 'login() user data: $data');
         _user = UserModel.fromJson(data);
         await _storage.saveUserData(data);
+        // Conectar WebSocket
+        try {
+          await _signalr.iniciar(_user!.id);
+        } catch (e) {
+          Logger.w('Auth', 'No se pudo iniciar SignalR: $e');
+        }
         _loading = false;
         notifyListeners();
         Logger.i('Auth', 'login() OK - user ${_user!.nombreCompleto} logged in');
@@ -142,6 +150,7 @@ class AuthProvider extends ChangeNotifier {
         'idPasajero': _user!.id,
       });
     }
+    try { await _signalr.detener(); } catch (_) {}
     await _storage.clearAll();
     _user = null;
     notifyListeners();
@@ -152,6 +161,11 @@ class AuthProvider extends ChangeNotifier {
     final token = await _storage.getSessionToken();
     if (userData['id'] != null && userData['id'] > 0 && token != null) {
       _user = UserModel.fromJson(userData);
+      try {
+        await _signalr.iniciar(_user!.id);
+      } catch (e) {
+        Logger.w('Auth', 'No se pudo iniciar SignalR en auto-login: $e');
+      }
       notifyListeners();
       return true;
     }

@@ -3,8 +3,9 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/theme.dart';
 import '../../services/logger.dart';
-import 'home_screen.dart';
+import '../../widgets/vaia_widgets.dart';
 import 'verify_code_screen.dart';
+import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -66,7 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (success) {
       if (!mounted) return;
       final phone = '${_codigoPaisController.text.trim()} ${_telefonoController.text.trim()}';
-      final auth = context.read<AuthProvider>();
+      final nav = Navigator.of(context);
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => VerifyCodeScreen(
@@ -74,11 +75,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             title: 'Verificar Registro',
             subtitle: 'Ingrese el codigo enviado a su WhatsApp',
             onVerified: () {
-              final nav = Navigator.of(context);
               auth.verifyRegistrationCode('000000').then((loggedIn) {
                 if (loggedIn) {
                   nav.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => const HomeScreen(),
+                      transitionsBuilder: (_, anim, __, child) =>
+                          FadeTransition(opacity: anim, child: child),
+                    ),
                     (route) => false,
                   );
                 }
@@ -89,10 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } else if (auth.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(auth.error!),
-          backgroundColor: AppTheme.danger,
-        ),
+        SnackBar(content: Text(auth.error!), backgroundColor: VaiaColors.danger),
       );
     }
   }
@@ -100,50 +101,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgLight,
       appBar: AppBar(
-        title: const Text('Crear Cuenta'),
-        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text('Crear cuenta', style: Theme.of(context).textTheme.displaySmall),
+                const SizedBox(height: 6),
                 Text(
-                  'Informacion personal',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textDark,
-                  ),
+                  'Unete a Vaia Viajes y empieza a moverte',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
+                _sectionLabel(context, 'Informacion personal', Icons.person_outline_rounded),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
-                      child: TextFormField(
+                      child: VaiaTextField(
                         controller: _nombreController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
+                        label: 'Nombre',
+                        prefixIcon: Icons.badge_outlined,
                         textInputAction: TextInputAction.next,
                         validator: (v) =>
                             v == null || v.trim().isEmpty ? 'Requerido' : null,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: TextFormField(
+                      child: VaiaTextField(
                         controller: _appaternoController,
-                        decoration: const InputDecoration(
-                          labelText: 'Ap. Paterno',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
+                        label: 'Ap. Paterno',
                         textInputAction: TextInputAction.next,
                         validator: (v) =>
                             v == null || v.trim().isEmpty ? 'Requerido' : null,
@@ -152,26 +149,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                VaiaTextField(
                   controller: _apmaternoController,
-                  decoration: const InputDecoration(
-                    labelText: 'Ap. Materno',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
+                  label: 'Ap. Materno (opcional)',
                   textInputAction: TextInputAction.next,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
+                const SizedBox(height: 12),
+                VaiaTextField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Correo electronico',
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
+                  label: 'Correo electronico',
+                  hint: 'tu@correo.com',
+                  prefixIcon: Icons.alternate_email_rounded,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Requerido';
-                    if (!v.contains('@')) return 'Correo invalido';
+                    if (!v.contains('@') || !v.contains('.')) return 'Correo invalido';
                     return null;
                   },
                 ),
@@ -179,71 +172,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Row(
                   children: [
                     SizedBox(
-                      width: 90,
-                      child: TextFormField(
+                      width: 100,
+                      child: VaiaTextField(
                         controller: _codigoPaisController,
-                        decoration: const InputDecoration(
-                          labelText: 'Codigo',
-                          prefixIcon: Icon(Icons.flag_outlined, size: 20),
-                        ),
+                        label: 'Codigo',
+                        prefixIcon: Icons.flag_outlined,
                         textInputAction: TextInputAction.next,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: TextFormField(
+                      child: VaiaTextField(
                         controller: _telefonoController,
-                        decoration: const InputDecoration(
-                          labelText: 'Telefono',
-                          prefixIcon: Icon(Icons.phone_outlined),
-                        ),
+                        label: 'Telefono',
+                        prefixIcon: Icons.phone_android_rounded,
                         keyboardType: TextInputType.phone,
+                        maxLength: 10,
                         textInputAction: TextInputAction.next,
-                        validator: (v) =>
-                            v == null || v.trim().isEmpty ? 'Requerido' : null,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Requerido';
+                          if (v.trim().length != 10) return '10 digitos';
+                          if (!RegExp(r'^\d{10}$').hasMatch(v.trim())) return 'Solo numeros';
+                          return null;
+                        },
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'Datos de la cuenta',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textDark,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
+                _sectionLabel(context, 'Datos de la cuenta', Icons.lock_outline_rounded),
+                const SizedBox(height: 10),
+                VaiaTextField(
                   controller: _accountController,
-                  decoration: const InputDecoration(
-                    labelText: 'Usuario',
-                    hintText: 'Nombre de usuario',
-                    prefixIcon: Icon(Icons.badge_outlined),
-                  ),
+                  label: 'Usuario',
+                  hint: 'Tu nombre de usuario',
+                  prefixIcon: Icons.alternate_email_rounded,
                   textInputAction: TextInputAction.next,
                   validator: (v) =>
                       v == null || v.trim().isEmpty ? 'Requerido' : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                VaiaTextField(
                   controller: _passwordController,
+                  label: 'Contrasena',
+                  prefixIcon: Icons.lock_outline_rounded,
                   obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Contrasena',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
                   textInputAction: TextInputAction.next,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Requerido';
                     if (v.length < 6) return 'Minimo 6 caracteres';
@@ -251,78 +232,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                VaiaTextField(
                   controller: _confirmPasswordController,
+                  label: 'Confirmar contrasena',
                   obscureText: _obscureConfirm,
-                  decoration: InputDecoration(
-                    labelText: 'Confirmar contrasena',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirm
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscureConfirm = !_obscureConfirm),
-                    ),
-                  ),
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _register(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                  ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Requerido';
                     if (v != _passwordController.text) return 'No coinciden';
                     return null;
                   },
                 ),
-                const SizedBox(height: 28),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _register,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text('Crear Cuenta'),
-                  ),
+                const SizedBox(height: 24),
+                VaiaPrimaryButton(
+                  label: 'Crear cuenta',
+                  icon: Icons.arrow_forward_rounded,
+                  loading: _isLoading,
+                  onPressed: _isLoading ? null : _register,
                 ),
-                const SizedBox(height: 20),
-                Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Ya tienes cuenta? ',
-                        style: TextStyle(
-                            color: AppTheme.textMedium, fontSize: 14),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Text(
-                          'Iniciar Sesion',
-                          style: TextStyle(
-                            color: AppTheme.primary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Ya tienes cuenta?', style: Theme.of(context).textTheme.bodyMedium),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Inicia sesion'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext context, String label, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: VaiaColors.primaryGhost,
+            borderRadius: BorderRadius.circular(VaiaRadius.sm),
+          ),
+          child: Icon(icon, size: 16, color: VaiaColors.primary),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(letterSpacing: 0.4),
+        ),
+      ],
     );
   }
 }

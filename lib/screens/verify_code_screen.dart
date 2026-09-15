@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../widgets/vaia_widgets.dart';
 
 class VerifyCodeScreen extends StatefulWidget {
   final String phoneNumber;
@@ -50,7 +51,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     final code = _controllers.map((c) => c.text).join();
     if (code.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingrese el codigo completo'), backgroundColor: AppTheme.danger),
+        const SnackBar(content: Text('Ingrese el codigo completo')),
       );
       return;
     }
@@ -62,7 +63,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     } else {
       setState(() => _isVerifying = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Codigo incorrecto, intente de nuevo'), backgroundColor: AppTheme.danger),
+        const SnackBar(content: Text('Codigo incorrecto, intente de nuevo')),
       );
       for (var c in _controllers) { c.clear(); }
       _focusNodes[0].requestFocus();
@@ -72,29 +73,44 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgLight,
-      appBar: AppBar(title: const Text('Verificar Codigo')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              const SizedBox(height: 40),
-              Icon(Icons.smartphone, size: 72, color: AppTheme.primary),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: VaiaColors.primaryGhost,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.smartphone_rounded,
+                  size: 56,
+                  color: VaiaColors.primary,
+                ),
+              ),
+              const SizedBox(height: 20),
               Text(
                 widget.title ?? 'Verificacion',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 widget.subtitle ?? 'Ingrese el codigo de 6 digitos enviado a ${widget.phoneNumber}',
-                style: const TextStyle(fontSize: 14, color: AppTheme.textMedium),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(6, (i) => SizedBox(
                   width: 48,
                   child: TextField(
@@ -103,11 +119,9 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                     textAlign: TextAlign.center,
                     keyboardType: TextInputType.number,
                     maxLength: 1,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                     decoration: const InputDecoration(
                       counterText: '',
-                      filled: true,
-                      fillColor: Colors.white,
                     ),
                     onChanged: (v) {
                       if (v.isNotEmpty) { _onDigitChanged(i, v); }
@@ -116,24 +130,21 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                   ),
                 )),
               ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity, height: 50,
-                child: ElevatedButton(
-                  onPressed: _isVerifying ? null : _verifyCode,
-                  child: _isVerifying
-                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Verificar'),
-                ),
+              const SizedBox(height: 28),
+              VaiaPrimaryButton(
+                label: 'Verificar',
+                icon: Icons.check_rounded,
+                loading: _isVerifying,
+                onPressed: _isVerifying ? null : _verifyCode,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               TextButton(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Codigo reenviado'), backgroundColor: AppTheme.primary),
+                    const SnackBar(content: Text('Codigo reenviado')),
                   );
                 },
-                child: const Text('Reenviar Codigo'),
+                child: const Text('Reenviar codigo'),
               ),
             ],
           ),

@@ -10,17 +10,16 @@ class ApiService {
   late String _baseUrl;
 
   ApiService(this._storage) {
-    _baseUrl = '${ApiConfig.baseUrl}${ApiConfig.pasajeroEndpoint}';
+    _baseUrl = ApiConfig.pasajeroBaseUrl;
   }
 
   String get baseUrl => _baseUrl;
-
-  bool get _useMock => false;
 
   Future<Map<String, String>> _headers() async {
     final token = await _storage.getSessionToken();
     final headers = <String, String>{
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
     };
     if (token != null) headers['Authorization'] = 'Bearer $token';
     return headers;
@@ -29,27 +28,46 @@ class ApiService {
   Future<ApiResponse> _handleResponse(http.Response response) async {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return ApiResponse.ok(null);
-      final decoded = json.decode(response.body);
-      return ApiResponse.ok(decoded);
+      try {
+        final decoded = json.decode(response.body);
+        if (decoded is Map) {
+          return ApiResponse.ok(
+            decoded['data'] ?? decoded,
+            message: decoded['message']?.toString(),
+          );
+        }
+        return ApiResponse.ok(decoded);
+      } catch (e) {
+        Logger.e('ApiService', 'Error parseando respuesta exitosa: $e');
+        return ApiResponse.ok(response.body);
+      }
     }
-    String msg = 'Error del servidor';
+
+    String msg = 'Error del servidor (${response.statusCode})';
+    String? errorCode;
     try {
       final body = json.decode(response.body);
-      msg = body['message'] ?? body['mensaje'] ?? msg;
+      if (body is Map) {
+        msg = body['message'] ?? body['mensaje'] ?? body['error'] ?? msg;
+        errorCode = body['code']?.toString();
+      }
     } catch (_) {}
-    return ApiResponse.error(msg, code: response.statusCode);
+    Logger.w('ApiService', 'HTTP ${response.statusCode} en ${response.request?.url}: $msg');
+    return ApiResponse.error(msg, code: response.statusCode, errorCode: errorCode);
   }
 
   Future<ApiResponse> get(String endpoint, {Map<String, String>? params}) async {
-    if (_useMock) return _mockGet(endpoint, params);
     final url = '$_baseUrl$endpoint';
     Logger.apiRequest('GET', url, params?.cast<String, dynamic>());
     try {
       var uri = Uri.parse(url);
       if (params != null && params.isNotEmpty) {
-        uri = uri.replace(queryParameters: params);
+        uri = uri.replace(queryParameters: {
+          for (var e in params.entries) e.key: e.value,
+        });
       }
-      final response = await http.get(uri, headers: await _headers())
+      final response = await http
+          .get(uri, headers: await _headers())
           .timeout(ApiConfig.timeout);
       Logger.apiResponse('GET', url, response.statusCode, response.body);
       return _handleResponse(response);
@@ -60,16 +78,17 @@ class ApiService {
   }
 
   Future<ApiResponse> post(String endpoint, {Map<String, dynamic>? body}) async {
-    if (_useMock) return _mockPost(endpoint, body);
     final url = '$_baseUrl$endpoint';
     Logger.apiRequest('POST', url, body);
     try {
       final uri = Uri.parse(url);
-      final response = await http.post(
-        uri,
-        headers: await _headers(),
-        body: body != null ? json.encode(body) : null,
-      ).timeout(ApiConfig.timeout);
+      final response = await http
+          .post(
+            uri,
+            headers: await _headers(),
+            body: body != null ? json.encode(body) : null,
+          )
+          .timeout(ApiConfig.timeout);
       Logger.apiResponse('POST', url, response.statusCode, response.body);
       return _handleResponse(response);
     } catch (e) {
@@ -78,120 +97,125 @@ class ApiService {
     }
   }
 
-  // ─── Mock responses ───────────────────────────────────────────────
+  /// Llama a un endpoint de otro controlador (ej. Servicio, Soporte) que no
+  /// cuelga de /Pasajero. `controller` es el nombre sin slash, ej. "Servicio".
+  String _rootUrl(String controller, String action) => '${ApiConfig.apiRoot}/$controller/$action';
 
-  Future<ApiResponse> _mockGet(String endpoint, Map<String, String>? params) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (endpoint.contains('/ObtenerPerfil')) {
-      return ApiResponse.ok([{
-        'id': 1, 'idcompania': 1, 'nombre': 'María', 'appaterno': 'García',
-        'apmaterno': 'López', 'correo': 'maria@ejemplo.com', 'telefono': '5551234567',
-        'account': 'maria_g',
-      }]);
+  Future<ApiResponse> getRoot(String controller, String action, {Map<String, String>? params}) async {
+    final url = _rootUrl(controller, action);
+    try {
+      var uri = Uri.parse(url);
+      if (params != null && params.isNotEmpty) {
+        uri = uri.replace(queryParameters: params);
+      }
+      final response = await http.get(uri, headers: await _headers()).timeout(ApiConfig.timeout);
+      Logger.apiResponse('GET', url, response.statusCode, response.body);
+      return _handleResponse(response);
+    } catch (e) {
+      Logger.apiError('GET', url, e);
+      return ApiResponse.error('Error de conexion: ${e.toString()}');
     }
-    if (endpoint.contains('/HistorialViajes')) {
-      return ApiResponse.ok([
-        {'id': 101, 'direccionorigen': 'Av. Reforma 123', 'direcciondestination': 'Polanco 456', 'costoestimado': 185.50, 'fechacreacion': '2026-07-14 10:30', 'estatus': 'Finalizado', 'calificacion': 5},
-        {'id': 102, 'direccionorigen': 'Insurgentes Sur 789', 'direcciondestination': 'Condesa 101', 'costoestimado': 120.00, 'fechacreacion': '2026-07-13 15:45', 'estatus': 'Finalizado', 'calificacion': 4},
-        {'id': 103, 'direccionorigen': 'Coyoacán 234', 'direcciondestination': 'Centro 567', 'costoestimado': 95.00, 'fechacreacion': '2026-07-12 09:15', 'estatus': 'Finalizado', 'calificacion': 5},
-      ]);
-    }
-    if (endpoint.contains('/DetalleViaje')) {
-      return ApiResponse.ok({
-        'id': params?['idServicio'], 'direccionorigen': 'Av. Reforma 123',
-        'direcciondestination': 'Polanco 456', 'costoestimado': 185.50,
-        'costofinal': 185.50, 'distanciametros': 8500, 'fechacreacion': '2026-07-14 10:30',
-        'estatus': 'Finalizado', 'calificacion': 5, 'comentarios': 'Excelente servicio',
-        'conductor': {'nombre': 'Carlos', 'appaterno': 'Mendoza', 'calificacion': 4.8, 'unidad': 'Tsuru', 'placas': 'XYZ-123'},
-      });
-    }
-    if (endpoint.contains('/ListarFavoritos')) {
-      return ApiResponse.ok([
-        {'id': 1, 'nombre': 'Casa', 'direccion': 'Av. Reforma 123'},
-        {'id': 2, 'nombre': 'Trabajo', 'direccion': 'Insurgentes Sur 789'},
-        {'id': 3, 'nombre': 'Gimnasio', 'direccion': 'Polanco 456'},
-      ]);
-    }
-    if (endpoint.contains('/ObtenerPromociones')) {
-      return ApiResponse.ok([
-        {'id': 1, 'codigo': 'BIENVENIDO', 'descripcion': '50% de descuento en tu primer viaje', 'porcentaje_descuento': 50, 'vigencia': '2026-12-31'},
-        {'id': 2, 'codigo': 'VIAJERO', 'descripcion': '\$50 de descuento en viajes nocturnos', 'montodescuento': 50, 'vigencia': '2026-12-31'},
-      ]);
-    }
-    if (endpoint.contains('/ObtenerAvisos')) {
-      return ApiResponse.ok([
-        {'id': 1, 'titulo': 'Mantenimiento programado', 'contenido': 'La app estará en mantenimiento el domingo 2AM-4AM', 'fechapublicacion': '2026-07-10'},
-      ]);
-    }
-    if (endpoint.contains('/ConductoresDisponibles')) {
-      return ApiResponse.ok([
-        {'id': 10, 'nombre': 'Carlos', 'appaterno': 'Mendoza', 'lat': '19.4326', 'lng': '-99.1332', 'unidad': 'Tsuru', 'placas': 'XYZ-123', 'calificacion': 4.8},
-        {'id': 11, 'nombre': 'Ana', 'appaterno': 'López', 'lat': '19.4275', 'lng': '-99.1412', 'unidad': 'Versa', 'placas': 'ABC-789', 'calificacion': 4.9},
-      ]);
-    }
-    if (endpoint.contains('/ObtenerEstadoServicio')) {
-      return ApiResponse.ok({
-        'id': 1001, 'idservicioestatus': 2, 'estatus': 'En Camino',
-        'idconductor': 10, 'conductorNombre': 'Carlos Mendoza',
-        'unidad': 'Tsuru', 'placas': 'XYZ-123',
-        'lat_conductor': '19.4300', 'lng_conductor': '-99.1350',
-        'duracionSegundos': 480, 'distanciametros': 2500,
-      });
-    }
-    if (endpoint.contains('/ObtenerMensajesChat')) {
-      return ApiResponse.ok([
-        {'id': 1, 'emisor': 'Conductor', 'mensaje': 'Hola, ya voy en camino', 'fechaenvio': '10:35', 'leido': true},
-        {'id': 2, 'emisor': 'Pasajero', 'mensaje': 'Perfecto, te espero', 'fechaenvio': '10:36', 'leido': true},
-        {'id': 3, 'emisor': 'Conductor', 'mensaje': 'Llegaré en 5 minutos', 'fechaenvio': '10:38', 'leido': false},
-      ]);
-    }
-    return ApiResponse.ok([]);
   }
 
-  Future<ApiResponse> _mockPost(String endpoint, Map<String, dynamic>? body) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (endpoint.contains('/SolicitarServicio')) {
-      return ApiResponse.ok([{
-        'id': 1001, 'idpasajero': body?['idPasajero'], 'estatus': 'Solicitado',
-        'direccionorigen': body?['dirOrigen'], 'latorigen': body?['latOrigen'],
-        'lngorigen': body?['lngOrigen'], 'direcciondestination': body?['dirDestino'],
-        'latdestination': body?['latDestino'], 'lngdestination': body?['lngDestino'],
-        'distanciametros': body?['distanciaMetros'], 'costoestimado': 150.00,
-        'tipoviaje': body?['tipoviaje'] ?? 'URBANO',
-      }]);
+  Future<ApiResponse> postRoot(String controller, String action, {Map<String, dynamic>? body}) async {
+    final url = _rootUrl(controller, action);
+    try {
+      final uri = Uri.parse(url);
+      final response = await http
+          .post(uri, headers: await _headers(), body: body != null ? json.encode(body) : null)
+          .timeout(ApiConfig.timeout);
+      Logger.apiResponse('POST', url, response.statusCode, response.body);
+      return _handleResponse(response);
+    } catch (e) {
+      Logger.apiError('POST', url, e);
+      return ApiResponse.error('Error de conexion: ${e.toString()}');
     }
-    if (endpoint.contains('/CancelarServicio')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Servicio cancelado'}]);
-    }
-    if (endpoint.contains('/CalificarViaje')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Calificación guardada'}]);
-    }
-    if (endpoint.contains('/ActivarAlarmaSOS')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Alarma enviada'}]);
-    }
-    if (endpoint.contains('/ActualizarPerfil')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Perfil actualizado'}]);
-    }
-    if (endpoint.contains('/CambiarPassword')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Contraseña cambiada'}]);
-    }
-    if (endpoint.contains('/CambiarTelefono')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Teléfono actualizado'}]);
-    }
-    if (endpoint.contains('/AgregarFavorito')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Favorito agregado'}]);
-    }
-    if (endpoint.contains('/EliminarFavorito')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Favorito eliminado'}]);
-    }
-    if (endpoint.contains('/ValidarCodigoPromocional')) {
-      return ApiResponse.ok([{'valido': true, 'descuento': 50, 'mensaje': 'Código válido'}]);
-    }
-    if (endpoint.contains('/EnviarMensajeChat')) {
-      return ApiResponse.ok([{'resultado': 1, 'mensaje': 'Mensaje enviado'}]);
-    }
-    return ApiResponse.ok([{'resultado': 1}]);
   }
+
+  // ─── PARADAS INTERMEDIAS ─────────────────────────────────────
+
+  Future<ApiResponse> agregarParada(int idServicio, int orden, String direccion, String lat, String lng, {String? referencia, String? notas}) =>
+      postRoot('Servicio', 'AgregarParada', body: {
+        'idservicio': idServicio,
+        'orden': orden,
+        'direccion': direccion,
+        'lat': lat,
+        'lng': lng,
+        if (referencia != null) 'referencia': referencia,
+        if (notas != null) 'notas': notas,
+      });
+
+  Future<ApiResponse> listarParadas(int idServicio) =>
+      getRoot('Servicio', 'ListarParadas', params: {'idservicio': idServicio.toString()});
+
+  Future<ApiResponse> completarParada(int idParada, int idConductor) =>
+      postRoot('Servicio', 'CompletarParada', body: {'idParada': idParada, 'idConductor': idConductor});
+
+  Future<ApiResponse> eliminarParada(int idParada) =>
+      postRoot('Servicio', 'EliminarParada', body: {'idParada': idParada});
+
+  // ─── SERVICIOS PROGRAMADOS ───────────────────────────────────
+
+  Future<ApiResponse> programarServicio(Map<String, dynamic> data) =>
+      postRoot('Servicio', 'Programar', body: data);
+
+  Future<ApiResponse> listarProgramados(int idPasajero, {String? estado}) =>
+      getRoot('Servicio', 'ListarProgramados', params: {
+        'idPasajero': idPasajero.toString(),
+        if (estado != null) 'estado': estado,
+      });
+
+  Future<ApiResponse> obtenerProgramado(int id, int idPasajero) =>
+      getRoot('Servicio', 'ObtenerProgramado', params: {
+        'id': id.toString(),
+        'idPasajero': idPasajero.toString(),
+      });
+
+  Future<ApiResponse> cancelarProgramado(int id, int idPasajero, {String? motivo}) =>
+      postRoot('Servicio', 'CancelarProgramado', body: {
+        'id': id,
+        'idPasajero': idPasajero,
+        if (motivo != null) 'motivo': motivo,
+      });
+
+  // ─── SOPORTE ─────────────────────────────────────────────────
+
+  Future<ApiResponse> crearSolicitudSoporte(int idServicio, int idPasajero, String asunto, String descripcion, {String prioridad = 'Normal'}) =>
+      postRoot('Soporte', 'CrearSolicitud', body: {
+        'idservicio': idServicio,
+        'idpasajero': idPasajero,
+        'tipoSolicitante': 'pasajero',
+        'asunto': asunto,
+        'descripcion': descripcion,
+        'prioridad': prioridad,
+      });
+
+  Future<ApiResponse> listarSolicitudesSoporte({String? estatus, int pagina = 1, int tamano = 50}) =>
+      getRoot('Soporte', 'ListarSolicitudes', params: {
+        if (estatus != null) 'estatus': estatus,
+        'pagina': pagina.toString(),
+        'tamano': tamano.toString(),
+      });
+
+  Future<ApiResponse> obtenerSolicitudSoporte(int id) =>
+      getRoot('Soporte', 'ObtenerSolicitud', params: {'id': id.toString()});
+
+  Future<ApiResponse> enviarMensajeSoporte(int idSolicitud, String emisor, int idEmisor, String nombreEmisor, String mensaje) =>
+      postRoot('Soporte', 'EnviarMensaje', body: {
+        'idsolicitud': idSolicitud,
+        'emisor': emisor,
+        'idemisor': idEmisor,
+        'nombreEmisor': nombreEmisor,
+        'mensaje': mensaje,
+      });
+
+  Future<ApiResponse> listarMensajesSoporte(int idSolicitud) =>
+      getRoot('Soporte', 'ListarMensajes', params: {'idsolicitud': idSolicitud.toString()});
+
+  Future<ApiResponse> cerrarSolicitudSoporte(int id, {int? idUsuarioSoporte, String? comentario}) =>
+      postRoot('Soporte', 'CerrarSolicitud', body: {
+        'id': id,
+        if (idUsuarioSoporte != null) 'idUsuarioSoporte': idUsuarioSoporte,
+        if (comentario != null) 'comentario': comentario,
+      });
 }
