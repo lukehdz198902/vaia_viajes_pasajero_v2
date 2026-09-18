@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
 import 'service_status_screen.dart';
@@ -57,6 +58,12 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     _originLatLng = LatLng(widget.currentLat, widget.currentLng);
     _originController.text = 'Mi ubicacion actual';
     _updateMapMarkers();
+    // Tarifas vigentes del servidor (costo minimo, por km y por minuto)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final idCompania = context.read<AuthProvider>().idCompania;
+      context.read<ProfileProvider>().cargarTarifas(idCompania > 0 ? idCompania : 1);
+    });
   }
 
   @override
@@ -154,13 +161,45 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   double _sqrt(double v) => v < 0 ? 0 : v * v;
   double _atan2(double y, double x) => y / x;
 
+  double _toDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
+  /// Costo estimado: usa la tarifa configurada en el servidor
+  /// (minimo + por km + por minuto). El costo real se calcula por
+  /// tarifa dinamica al finalizar el servicio.
   double _calculateCost(double meters, String type) {
     final km = meters / 1000;
+    final minutes = (meters / 8.33) / 60;
+
+    final tarifas = context.read<ProfileProvider>().tarifas;
+    if (tarifas.isNotEmpty) {
+      final t = tarifas.first;
+      final minimo = _toDouble(t['costominimo']);
+      final porKm = _toDouble(t['costoporkm']);
+      final porMin = _toDouble(t['costoporminuto']);
+      if (minimo > 0 || porKm > 0 || porMin > 0) {
+        final base = minimo + km * porKm + minutes * porMin;
+        return base * _factorTipo(type);
+      }
+    }
+
+    // Respaldo local mientras llega la configuracion del servidor
     switch (type) {
       case 'URBANO': return 8.50 + km * 5.50;
       case 'INTERURBANO': return 15.00 + km * 7.50;
       case 'AEROPUERTO': return 25.00 + km * 9.50;
       default: return 8.50 + km * 5.50;
+    }
+  }
+
+  double _factorTipo(String type) {
+    switch (type) {
+      case 'INTERURBANO': return 1.25;
+      case 'AEROPUERTO': return 1.50;
+      default: return 1.00;
     }
   }
 

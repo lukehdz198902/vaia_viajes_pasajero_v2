@@ -19,6 +19,7 @@ class UserModel {
   final String? uuidsesion;
   final String? mensaje;
   final bool eslogueadocongoogle;
+  final bool correoConfirmado;
 
   UserModel({
     required this.id,
@@ -41,9 +42,58 @@ class UserModel {
     this.uuidsesion,
     this.mensaje,
     this.eslogueadocongoogle = false,
+    this.correoConfirmado = false,
   });
 
   String get nombreCompleto => '$nombre $appaterno $apmaterno'.trim();
+
+  UserModel copyWith({String? correo, bool? correoConfirmado}) => UserModel(
+        id: id,
+        idCompania: idCompania,
+        nombre: nombre,
+        appaterno: appaterno,
+        apmaterno: apmaterno,
+        correo: correo ?? this.correo,
+        codigopaistel: codigopaistel,
+        telefono: telefono,
+        account: account,
+        fotoperfil: fotoperfil,
+        googlekeyso: googlekeyso,
+        bloqueado: bloqueado,
+        conectado: conectado,
+        metodopagopreferido: metodopagopreferido,
+        idiomapreferido: idiomapreferido,
+        fechanacimiento: fechanacimiento,
+        genero: genero,
+        uuidsesion: uuidsesion,
+        mensaje: mensaje,
+        eslogueadocongoogle: eslogueadocongoogle,
+        correoConfirmado: correoConfirmado ?? this.correoConfirmado,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'idcompania': idCompania,
+        'nombre': nombre,
+        'appaterno': appaterno,
+        'apmaterno': apmaterno,
+        'correo': correo,
+        'codigopaistel': codigopaistel,
+        'telefono': telefono,
+        'account': account,
+        'fotoperfil': fotoperfil,
+        'googlekeyso': googlekeyso,
+        'bloqueado': bloqueado,
+        'conectado': conectado,
+        'metodopagopreferido': metodopagopreferido,
+        'idiomapreferido': idiomapreferido,
+        'fechanacimiento': fechanacimiento,
+        'genero': genero,
+        'uuidsesion': uuidsesion,
+        'mensaje': mensaje,
+        'eslogueadocongoogle': eslogueadocongoogle,
+        'correoconfirmado': correoConfirmado,
+      };
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -67,6 +117,7 @@ class UserModel {
       uuidsesion: json['uuidsesion'] ?? json['Uuidsesion'],
       mensaje: json['mensaje'] ?? json['Mensaje'],
       eslogueadocongoogle: json['eslogueadocongoogle'] == true || json['Eslogueadocongoogle'] == true,
+      correoConfirmado: json['correoconfirmado'] == true || json['Correoconfirmado'] == true,
     );
   }
 }

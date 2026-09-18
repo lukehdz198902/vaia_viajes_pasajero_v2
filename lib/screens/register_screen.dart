@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../services/logger.dart';
 import '../../widgets/vaia_widgets.dart';
 import 'verify_code_screen.dart';
+import 'verify_email_screen.dart';
 import 'home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -46,71 +47,103 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
+
     final auth = context.read<AuthProvider>();
-    final data = {
-      'idCompania': 1,
-      'googlekey': '',
-      'nombre': _nombreController.text.trim(),
-      'appaterno': _appaternoController.text.trim(),
-      'apmaterno': _apmaternoController.text.trim(),
-      'correo': _emailController.text.trim(),
-      'codigopaistel': _codigoPaisController.text.trim(),
-      'telefono': _telefonoController.text.trim(),
-      'account': _accountController.text.trim(),
-      'pass': _passwordController.text,
-    };
-    Logger.i('RegisterScreen', 'register() data: $data');
-    final success = await auth.register(data);
+    final telefono = _telefonoController.text.trim();
+    final codigoPais = _codigoPaisController.text.trim();
+    final account = _accountController.text.trim();
+    final pass = _passwordController.text;
+
+    // Guarda los datos del formulario; la cuenta NO se crea todavia.
+    auth.setPendingRegistration(
+      account: account,
+      pass: pass,
+      telefono: telefono,
+      codigopaistel: codigoPais,
+    );
+
+    // 1) Enviar el codigo de WhatsApp ANTES de crear la cuenta
+    final enviado = await auth.enviarCodigoVerificacion(
+      telefono: telefono,
+      codigopaistel: codigoPais,
+    );
     if (!mounted) return;
     setState(() => _isLoading = false);
-    Logger.i('RegisterScreen', 'register() result: success=$success error=${auth.error}');
-    if (success) {
-      if (!mounted) return;
-      final telefono = _telefonoController.text.trim();
-      final codigoPais = _codigoPaisController.text.trim();
-      final phone = '$codigoPais $telefono';
-
-      // Enviar el codigo real por WhatsApp
-      final enviado = await auth.enviarCodigoVerificacion(
-        telefono: telefono,
-        codigopaistel: codigoPais,
-      );
-      if (!mounted) return;
-      if (!enviado) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo enviar el codigo por WhatsApp. Intenta reenviarlo.'),
-            backgroundColor: VaiaColors.warning,
-          ),
-        );
-      }
-
-      final nav = Navigator.of(context);
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => VerifyCodeScreen(
-            phoneNumber: phone,
-            title: 'Verificar Registro',
-            subtitle: 'Ingrese el codigo enviado a su WhatsApp',
-            onVerify: (code) => auth.verifyRegistrationCode(code),
-            onVerified: () {
-              nav.pushAndRemoveUntil(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const HomeScreen(),
-                  transitionsBuilder: (_, anim, __, child) =>
-                      FadeTransition(opacity: anim, child: child),
-                ),
-                (route) => false,
-              );
-            },
-          ),
+    Logger.i('RegisterScreen', 'enviarCodigoVerificacion=$enviado');
+    if (!enviado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo enviar el codigo por WhatsApp. Intenta de nuevo.'),
+          backgroundColor: VaiaColors.warning,
         ),
       );
-    } else if (auth.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error!), backgroundColor: VaiaColors.danger),
-      );
+      return;
     }
+
+    final phone = '$codigoPais $telefono';
+    final nav = Navigator.of(context);
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) => VerifyCodeScreen(
+          phoneNumber: phone,
+          title: 'Verificar telefono',
+          subtitle: 'Ingresa el codigo enviado a tu WhatsApp',
+          icon: Icons.smartphone_rounded,
+          onVerify: (code) => auth.validarCodigoTelefono(
+            code,
+            telefono: telefono,
+            codigopaistel: codigoPais,
+          ),
+          onResend: () => auth.enviarCodigoVerificacion(
+            telefono: telefono,
+            codigopaistel: codigoPais,
+          ),
+          onVerified: () async {
+            // 2) Crear la cuenta solo despues de validar el telefono
+            final data = {
+              'idCompania': 1,
+              'googlekey': '',
+              'nombre': _nombreController.text.trim(),
+              'appaterno': _appaternoController.text.trim(),
+              'apmaterno': _apmaternoController.text.trim(),
+              'correo': _emailController.text.trim(),
+              'codigopaistel': codigoPais,
+              'telefono': telefono,
+              'account': account,
+              'pass': pass,
+            };
+            Logger.i('RegisterScreen', 'register() data: $data');
+            final success = await auth.register(data);
+            if (!mounted) return;
+            if (!success) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(auth.error ?? 'No se pudo crear la cuenta'),
+                  backgroundColor: VaiaColors.danger,
+                ),
+              );
+              return;
+            }
+
+            nav.pushAndRemoveUntil(
+              PageRouteBuilder(
+                pageBuilder: (_, __, ___) => const HomeScreen(),
+                transitionsBuilder: (_, anim, __, child) =>
+                    FadeTransition(opacity: anim, child: child),
+              ),
+              (route) => false,
+            );
+
+            // 3) Solicitar la verificacion del correo (opcional)
+            if (!auth.correoConfirmado) {
+              nav.push(
+                MaterialPageRoute(builder: (_) => const VerifyEmailScreen()),
+              );
+            }
+          },
+        ),
+      ),
+    );
   }
 
   @override

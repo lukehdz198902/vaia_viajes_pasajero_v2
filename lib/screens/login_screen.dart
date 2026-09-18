@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/theme.dart';
+import '../../services/google_auth_service.dart';
 import '../../widgets/vaia_widgets.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
 import 'recover_password_screen.dart';
+import 'verify_email_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,6 +28,51 @@ class _LoginScreenState extends State<LoginScreen> {
     _accountController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _irAHome() {
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => const HomeScreen(),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
+      ),
+      (route) => false,
+    );
+  }
+
+  Future<void> _loginConGoogle() async {
+    setState(() => _isLoading = true);
+    final auth = context.read<AuthProvider>();
+    try {
+      final idToken = await GoogleAuthService.obtenerIdToken();
+      if (!mounted) return;
+      if (idToken == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      final ok = await auth.loginConGoogle(idToken);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (ok) {
+        _irAHome();
+        if (!auth.correoConfirmado) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const VerifyEmailScreen()),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? 'No se pudo iniciar sesion con Google'), backgroundColor: VaiaColors.danger),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: VaiaColors.danger),
+      );
+    }
   }
 
   Future<void> _login() async {
@@ -160,11 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     label: 'Continuar con Google',
                     icon: Icons.g_mobiledata_rounded,
                     fullWidth: true,
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Google Sign-In en desarrollo')),
-                      );
-                    },
+                    onPressed: _isLoading ? null : _loginConGoogle,
                   ),
                   const Spacer(),
                   const SizedBox(height: 20),

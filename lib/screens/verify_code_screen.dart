@@ -12,6 +12,12 @@ class VerifyCodeScreen extends StatefulWidget {
   /// sobre la verificacion local.
   final Future<bool> Function(String code)? onVerify;
 
+  /// Reenvia el codigo. Si se define, se ejecuta al pulsar "Reenviar codigo".
+  final Future<bool> Function()? onResend;
+
+  /// Icono mostrado en la cabecera.
+  final IconData? icon;
+
   const VerifyCodeScreen({
     super.key,
     required this.phoneNumber,
@@ -19,6 +25,8 @@ class VerifyCodeScreen extends StatefulWidget {
     this.title,
     this.subtitle,
     this.onVerify,
+    this.onResend,
+    this.icon,
   });
 
   @override
@@ -102,8 +110,8 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                   color: VaiaColors.primaryGhost,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(
-                  Icons.smartphone_rounded,
+                child: Icon(
+                  widget.icon ?? Icons.smartphone_rounded,
                   size: 56,
                   color: VaiaColors.primary,
                 ),
@@ -150,10 +158,18 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
               ),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Codigo reenviado')),
-                  );
+                onPressed: () async {
+                  if (widget.onResend != null) {
+                    final ok = await widget.onResend!();
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(ok ? 'Codigo reenviado' : 'No se pudo reenviar el codigo')),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Codigo reenviado')),
+                    );
+                  }
                 },
                 child: const Text('Reenviar codigo'),
               ),

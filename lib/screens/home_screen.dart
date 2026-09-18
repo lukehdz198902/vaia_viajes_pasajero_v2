@@ -15,6 +15,7 @@ import '../../providers/theme_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import 'service_request_screen.dart';
 import 'login_screen.dart';
+import 'verify_email_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -48,6 +49,17 @@ class _HomeScreenState extends State<HomeScreen> {
     // Refrescar unidades cercanas cada 10 s mientras el pasajero esta en Inicio
     _driversTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadDrivers());
     _cargarIconoCarrito();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _verificarCorreoPendiente());
+  }
+
+  /// Al ingresar, si el correo aun no esta verificado se solicita validarlo
+  /// (o corregirlo) sin bloquear el uso de la app.
+  Future<void> _verificarCorreoPendiente() async {
+    final auth = context.read<AuthProvider>();
+    if (!mounted || !auth.isLoggedIn || auth.correoConfirmado) return;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const VerifyEmailScreen()),
+    );
   }
 
   Future<void> _cargarIconoCarrito() async {

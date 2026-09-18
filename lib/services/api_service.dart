@@ -153,6 +153,10 @@ class ApiService {
         'googlekey': token,
       });
 
+  /// Obtiene la configuracion de tarifas (costo minimo, por km, por minuto).
+  Future<ApiResponse> obtenerConfiguracionCostos(int idCompania) =>
+      get('/ObtenerConfiguracionCostos', params: {'idCompania': idCompania.toString()});
+
   // ─── PARADAS INTERMEDIAS ─────────────────────────────────────
 
   Future<ApiResponse> agregarParada(int idServicio, int orden, String direccion, String lat, String lng, {String? referencia, String? notas}) =>
@@ -238,5 +242,26 @@ class ApiService {
         'id': id,
         if (idUsuarioSoporte != null) 'idUsuarioSoporte': idUsuarioSoporte,
         if (comentario != null) 'comentario': comentario,
+      });
+
+  // ─── VERIFICACION DE CORREO / GOOGLE ─────────────────────────
+
+  Future<ApiResponse> enviarCodigoCorreo(int idPasajero, {String? correoNuevo}) =>
+      post('/EnviarCodigoCorreo', body: {
+        'idPasajero': idPasajero,
+        if (correoNuevo != null) 'correoNuevo': correoNuevo,
+      });
+
+  Future<ApiResponse> validarCodigoCorreo(int idPasajero, String codigo) =>
+      post('/ValidarCodigoCorreo', body: {'idPasajero': idPasajero, 'codigo': codigo});
+
+  Future<ApiResponse> cambiarCorreo(int idPasajero, String correoNuevo, String codigo) =>
+      post('/CambiarCorreo', body: {'idPasajero': idPasajero, 'correoNuevo': correoNuevo, 'codigo': codigo});
+
+  Future<ApiResponse> iniciarSesionGoogle(String idToken, {int idCompania = 1, String? googlekey}) =>
+      post('/IniciarSesionGoogle', body: {
+        'idToken': idToken,
+        'idCompania': idCompania,
+        if (googlekey != null) 'googlekey': googlekey,
       });
 }

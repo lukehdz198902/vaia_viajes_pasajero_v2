@@ -17,14 +17,33 @@ class ProfileProvider extends ChangeNotifier {
   List<FavoritoModel> _favoritos = [];
   List<PromocionModel> _promociones = [];
   List<AvisoModel> _avisos = [];
+  List<Map<String, dynamic>> _tarifas = [];
   bool _loading = false;
   String? _error;
 
   List<FavoritoModel> get favoritos => _favoritos;
   List<PromocionModel> get promociones => _promociones;
   List<AvisoModel> get avisos => _avisos;
+  List<Map<String, dynamic>> get tarifas => _tarifas;
   bool get loading => _loading;
   String? get error => _error;
+
+  /// Carga la configuracion de costos vigente de la compania.
+  Future<void> cargarTarifas(int idCompania) async {
+    try {
+      final res = await _api.obtenerConfiguracionCostos(idCompania);
+      if (res.success) {
+        _tarifas = res.list
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        Logger.i('Profile', 'cargarTarifas: ${_tarifas.length} tarifa(s)');
+        notifyListeners();
+      }
+    } catch (e) {
+      Logger.w('Profile', 'cargarTarifas exception: $e');
+    }
+  }
 
   Future<void> cargarPerfil() async {
     _loading = true;
