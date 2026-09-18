@@ -3,6 +3,7 @@ import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/signalr_service.dart';
+import '../services/notification_service.dart';
 import '../services/logger.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -51,6 +52,7 @@ class AuthProvider extends ChangeNotifier {
         _loading = false;
         notifyListeners();
         Logger.i('Auth', 'login() OK - user ${_user!.nombreCompleto} logged in');
+        _registrarToken();
         return true;
       }
       _error = res.getMensaje();
@@ -167,9 +169,22 @@ class AuthProvider extends ChangeNotifier {
         Logger.w('Auth', 'No se pudo iniciar SignalR en auto-login: $e');
       }
       notifyListeners();
+      _registrarToken();
       return true;
     }
     return false;
+  }
+
+  /// Registra el token de notificaciones push (FCM) en el backend.
+  Future<void> _registrarToken() async {
+    final t = NotificationService.token;
+    if (t == null || t.isEmpty || _user == null) return;
+    try {
+      await _api.actualizarToken(_user!.id, t);
+      Logger.i('Auth', 'Token FCM registrado');
+    } catch (e) {
+      Logger.w('Auth', 'No se pudo registrar el token FCM: $e');
+    }
   }
 
   void clearError() {

@@ -13,6 +13,8 @@ class RideModel {
   final String latDestino;
   final String lngDestino;
   final double costoEstimado;
+  final double? costoEnCurso;
+  final double? costoFinal;
   final double? gananciaConductor;
   final double? comisionAplicada;
   final int distanciaMetros;
@@ -33,6 +35,7 @@ class RideModel {
   final String? unidad;
   final String? placas;
   final int? totalRegistros;
+  final String? codigoInicio;
 
   RideModel({
     required this.id,
@@ -47,6 +50,8 @@ class RideModel {
     required this.latDestino,
     required this.lngDestino,
     required this.costoEstimado,
+    this.costoEnCurso,
+    this.costoFinal,
     this.gananciaConductor,
     this.comisionAplicada,
     required this.distanciaMetros,
@@ -67,6 +72,7 @@ class RideModel {
     this.unidad,
     this.placas,
     this.totalRegistros,
+    this.codigoInicio,
   });
 
   String get conductorNombre => conductor?.nombreCompleto ?? '--';
@@ -96,6 +102,7 @@ class RideModel {
       idPasajero: json['idpasajero'] ?? json['Idpasajero'] ?? 0,
       idServicioEstatus: json['idservicioestatus'] ?? json['Idservicioestatus'],
       estatus: json['estatus'] ?? json['Estatus'],
+      codigoInicio: json['codigoinicio']?.toString() ?? json['Codigoinicio']?.toString(),
       direccionOrigen: json['direccionorigen'] ?? json['Direccionorigen'] ?? '',
       latOrigen: json['latorigen'] ?? json['Latorigen'] ?? '',
       lngOrigen: json['lngorigen'] ?? json['Lngorigen'] ?? '',
@@ -103,6 +110,8 @@ class RideModel {
       latDestino: json['latdestination'] ?? json['Latdestination'] ?? '',
       lngDestino: json['lngdestination'] ?? json['Lngdestination'] ?? '',
       costoEstimado: _toDouble(json['costoestimado'] ?? json['Costoestimado'] ?? 0),
+      costoEnCurso: _toDouble(json['costoencurso'] ?? json['Costoencurso']),
+      costoFinal: _toDouble(json['costofinal'] ?? json['Costofinal']),
       gananciaConductor: _toDouble(json['gananciaconductor'] ?? json['Gananciaconductor']),
       comisionAplicada: _toDouble(json['comisionaplicada'] ?? json['Comisionaplicada']),
       distanciaMetros: json['distanciametros'] ?? json['Distanciametros'] ?? 0,

@@ -29,6 +29,8 @@ class RideProvider extends ChangeNotifier {
   String? _error;
   bool _buscandoConductor = false;
   Timer? _pollTimer;
+  Timer? _presenceTimer;
+  int _idPasajeroPresencia = 0;
   int _pollCount = 0;
   bool _useSimulation = false;
   bool _conectadoWs = false;
@@ -94,6 +96,17 @@ class RideProvider extends ChangeNotifier {
         if (lat != null && lng != null) {
           _conductorLat = lat;
           _conductorLng = lng;
+          notifyListeners();
+        }
+        break;
+      case 'CostoActualizado':
+        // Taximetro: costo en vivo durante el viaje
+        final costo = double.tryParse(event.data['costo']?.toString() ?? '');
+        if (_currentRide != null && costo != null) {
+          _currentRide = RideModel.fromJson({
+            ..._currentRide!.toJson(),
+            'costoencurso': costo,
+          });
           notifyListeners();
         }
         break;
@@ -632,9 +645,34 @@ class RideProvider extends ChangeNotifier {
     return int.tryParse(v.toString()) ?? 0;
   }
 
+  // ─── PRESENCIA (ligera) ──────────────────────────────────────
+  //
+  // El pasajero NO reporta su ubicacion de forma constante (para no
+  // cargar el servidor con miles de usuarios). Solo envia un latido
+  // para que el sistema sepa que esta usando la app. Los origenes se
+  // registran del lado del servidor al solicitar un servicio.
+
+  void iniciarPresencia(int idPasajero) {
+    if (idPasajero <= 0) return;
+    if (_idPasajeroPresencia == idPasajero && _presenceTimer != null) return;
+
+    _idPasajeroPresencia = idPasajero;
+    _presenceTimer?.cancel();
+
+    _signalr.latido();
+    _presenceTimer = Timer.periodic(const Duration(seconds: 60), (_) => _signalr.latido());
+  }
+
+  void detenerPresencia() {
+    _presenceTimer?.cancel();
+    _presenceTimer = null;
+    _idPasajeroPresencia = 0;
+  }
+
   @override
   void dispose() {
     _pollTimer?.cancel();
+    detenerPresencia();
     _subEventos?.cancel();
     _subConexion?.cancel();
     super.dispose();

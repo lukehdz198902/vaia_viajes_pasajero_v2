@@ -107,6 +107,7 @@ class SignalRService {
       'EstatusCambiado',
       'ServicioCancelado',
       'UbicacionConductor',
+      'CostoActualizado',
       'ServicioProgramado',
       'ServicioProgramadoActivado',
       'ServicioProgramadoCancelado',
@@ -142,10 +143,10 @@ class SignalRService {
     } catch (_) {}
   }
 
-  /// El pasajero reporta su ubicacion (opcional).
-  Future<void> actualizarUbicacionPasajero(double lat, double lng) async {
+  /// Latido del pasajero: marca presencia sin reportar ubicacion.
+  Future<void> latido() async {
     try {
-      await _servicioConn?.invoke('ActualizarUbicacion', args: [_idPasajero, lat.toString(), lng.toString(), _idServicioActivo]);
+      await _servicioConn?.invoke('LatidoPasajero', args: [_idPasajero]);
     } catch (_) {}
   }
 

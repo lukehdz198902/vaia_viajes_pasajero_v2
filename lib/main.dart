@@ -5,6 +5,7 @@ import 'config/routes.dart';
 import 'services/api_service.dart';
 import 'services/storage_service.dart';
 import 'services/signalr_service.dart';
+import 'services/notification_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ride_provider.dart';
 import 'providers/profile_provider.dart';
@@ -12,8 +13,9 @@ import 'providers/chat_provider.dart';
 import 'providers/soporte_provider.dart';
 import 'providers/theme_provider.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.inicializar();
   runApp(const VaiaViajesApp());
 }
 

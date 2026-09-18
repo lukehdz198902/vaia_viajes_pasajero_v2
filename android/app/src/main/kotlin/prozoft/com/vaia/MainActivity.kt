@@ -1,4 +1,4 @@
-package com.vaiaviajes.vaia_viajes_pasajero_v2
+package prozoft.com.vaia
 
 import io.flutter.embedding.android.FlutterActivity
 

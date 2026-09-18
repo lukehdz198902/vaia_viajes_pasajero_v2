@@ -1,10 +1,13 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ride_provider.dart';
 import '../../config/theme.dart';
 import '../../models/ride_model.dart';
+import '../../services/api_service.dart';
 import 'rating_screen.dart';
 import 'chat_screen.dart';
 import 'report_incident_screen.dart';
@@ -18,13 +21,14 @@ class ServiceStatusScreen extends StatefulWidget {
 
 class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   final Set<Marker> _markers = {};
-  final _codeController = TextEditingController();
-  bool _showStartCodeInput = false;
-  bool _isStartingService = false;
+  BitmapDescriptor? _carIcon;
+  LatLng? _ultimaPosVehiculo;
+  double _bearingVehiculo = 0;
 
   @override
   void initState() {
     super.initState();
+    _cargarIconoCarrito();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkFinished();
       _updateMap();
@@ -33,9 +37,27 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     });
   }
 
+  Future<void> _cargarIconoCarrito() async {
+    try {
+      final data = await rootBundle.load('assets/images/car.png');
+      final bd = BitmapDescriptor.fromBytes(data.buffer.asUint8List());
+      if (mounted) setState(() => _carIcon = bd);
+    } catch (_) {}
+  }
+
+  /// Rumbo en grados desde `a` hacia `b` (0 = norte).
+  double _calcularBearing(LatLng a, LatLng b) {
+    final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
+    final lat1 = a.latitude * math.pi / 180.0;
+    final lat2 = b.latitude * math.pi / 180.0;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final brng = math.atan2(y, x) * 180.0 / math.pi;
+    return (brng + 360.0) % 360.0;
+  }
+
   @override
   void dispose() {
-    _codeController.dispose();
     super.dispose();
   }
 
@@ -53,8 +75,53 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     }
   }
 
+  /// Pago en linea con MercadoPago o PayPal: abre el link de pago en el navegador.
+  Future<void> _pagarEnLinea(int idServicio) async {
+    final metodo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Pagar en linea'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'mercadopago'),
+            child: const Row(children: [Icon(Icons.account_balance_wallet_outlined), SizedBox(width: 12), Text('MercadoPago')]),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'paypal'),
+            child: const Row(children: [Icon(Icons.payments_outlined), SizedBox(width: 12), Text('PayPal')]),
+          ),
+        ],
+      ),
+    );
+    if (metodo == null) return;
+
+    final api = context.read<ApiService>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      String? url;
+      if (metodo == 'mercadopago') {
+        final res = await api.mercadoPagoPreferencia(idServicio);
+        url = (res.data?['initPoint'] ?? res.data?['sandboxInitPoint'])?.toString();
+      } else {
+        final res = await api.paypalCrearOrden(idServicio);
+        url = res.data?['approveUrl']?.toString();
+      }
+      if (url == null || url.isEmpty) {
+        messenger.showSnackBar(const SnackBar(content: Text('No se pudo iniciar el pago'), backgroundColor: AppTheme.danger));
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        messenger.showSnackBar(const SnackBar(content: Text('No se pudo abrir la pasarela de pago'), backgroundColor: AppTheme.danger));
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Error al pagar: $e'), backgroundColor: AppTheme.danger));
+    }
+  }
+
   void _updateMap() {
-    final ride = context.read<RideProvider>().currentRide;
+    final rideProv = context.read<RideProvider>();
+    final ride = rideProv.currentRide;
     if (ride == null) return;
 
     _markers.clear();
@@ -81,15 +148,24 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       );
     }
 
-    if (ride.conductor?.lat != null &&
-        ride.conductor?.lng != null &&
-        ride.conductor!.lat!.isNotEmpty &&
-        ride.conductor!.lng!.isNotEmpty) {
+    // Ubicacion en vivo del conductor (SignalR) con respaldo en el snapshot
+    final vLat = rideProv.conductorLat ?? double.tryParse(ride.conductor?.lat ?? '');
+    final vLng = rideProv.conductorLng ?? double.tryParse(ride.conductor?.lng ?? '');
+    if (vLat != null && vLng != null) {
+      final posVeh = LatLng(vLat, vLng);
+      if (_ultimaPosVehiculo != null &&
+          (_ultimaPosVehiculo!.latitude != vLat || _ultimaPosVehiculo!.longitude != vLng)) {
+        _bearingVehiculo = _calcularBearing(_ultimaPosVehiculo!, posVeh);
+      }
+      _ultimaPosVehiculo = posVeh;
       _markers.add(
         Marker(
           markerId: const MarkerId('vehicle'),
-          position: LatLng(double.parse(ride.conductor!.lat!), double.parse(ride.conductor!.lng!)),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          position: posVeh,
+          rotation: _bearingVehiculo,
+          flat: true,
+          anchor: const Offset(0.5, 0.5),
+          icon: _carIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
           infoWindow: const InfoWindow(title: 'Vehiculo'),
         ),
       );
@@ -137,27 +213,6 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se puede realizar la llamada'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _iniciarServicio() async {
-    final code = _codeController.text.trim();
-    if (code.isEmpty) return;
-    setState(() => _isStartingService = true);
-    final ride = context.read<RideProvider>();
-    final success = await ride.iniciarServicio(ride.currentRide!.id, code);
-    if (!mounted) return;
-    setState(() => _isStartingService = false);
-    if (success) {
-      setState(() => _showStartCodeInput = false);
-      _codeController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Viaje iniciado'), backgroundColor: Colors.green),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ride.error ?? 'Codigo incorrecto'), backgroundColor: AppTheme.danger),
       );
     }
   }
@@ -452,46 +507,79 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                     ),
                   ],
                 ),
-                if (isEnCamino && !_showStartCodeInput) ...[
+                // Codigo de inicio que el pasajero comparte con el conductor
+                if (ride.codigoInicio != null && ride.codigoInicio!.isNotEmpty && !isEnViaje) ...[
                   const SizedBox(height: 12),
-                  SizedBox(
+                  Container(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => setState(() => _showStartCodeInput = true),
-                      icon: const Icon(Icons.vpn_key_outlined),
-                      label: const Text('Ingresar codigo de inicio'),
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.35)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.vpn_key_outlined, size: 18, color: AppTheme.primary),
+                            SizedBox(width: 8),
+                            Text('Codigo de inicio',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.primary)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          ride.codigoInicio!,
+                          style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: 8),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Comparte este codigo con tu conductor para iniciar el viaje',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: AppTheme.textMedium),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-                if (_showStartCodeInput) ...[
+                // Taximetro: cobro en vivo durante el viaje
+                if (isEnViaje || (ride.costoFinal ?? 0) > 0) ...[
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _codeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Codigo de inicio',
-                            hintText: 'Ingresa el codigo del conductor',
-                            prefixIcon: Icon(Icons.vpn_key_outlined),
-                          ),
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _iniciarServicio(),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.accent.withValues(alpha: 0.35)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('Total del viaje',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.accent)),
+                        const SizedBox(height: 6),
+                        Text(
+                          '\$${((ride.costoFinal ?? 0) > 0 ? ride.costoFinal! : (ride.costoEnCurso ?? ride.costoEstimado)).toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: _isStartingService ? null : _iniciarServicio,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        const SizedBox(height: 2),
+                        Text(
+                          isEnViaje ? 'El cobro se actualiza en tiempo real' : 'Costo final',
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textMedium),
                         ),
-                        child: _isStartingService
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Iniciar'),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pagarEnLinea(ride.id),
+                      icon: const Icon(Icons.credit_card),
+                      label: const Text('Pagar en linea (MercadoPago / PayPal)'),
+                    ),
                   ),
                 ],
                 if (isEnViaje) ...[

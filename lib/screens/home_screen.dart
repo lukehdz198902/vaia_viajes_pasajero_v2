@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -27,11 +30,39 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _locationLoading = true;
   bool _mapError = false;
 
+  // Unidades cercanas
+  BitmapDescriptor? _carIcon;
+  final Map<int, LatLng> _driverPos = {};
+  final Map<int, double> _driverBearing = {};
+  Timer? _driversTimer;
+
   @override
   void initState() {
     super.initState();
     _initLocation();
     context.read<ProfileProvider>().cargarFavoritos();
+    final auth = context.read<AuthProvider>();
+    if (auth.isLoggedIn) {
+      context.read<RideProvider>().iniciarPresencia(auth.userId);
+    }
+    // Refrescar unidades cercanas cada 10 s mientras el pasajero esta en Inicio
+    _driversTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadDrivers());
+    _cargarIconoCarrito();
+  }
+
+  Future<void> _cargarIconoCarrito() async {
+    try {
+      final data = await rootBundle.load('assets/images/car.png');
+      final bd = BitmapDescriptor.fromBytes(data.buffer.asUint8List());
+      if (mounted) setState(() => _carIcon = bd);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _driversTimer?.cancel();
+    context.read<RideProvider>().detenerPresencia();
+    super.dispose();
   }
 
   Future<void> _initLocation() async {
@@ -102,21 +133,50 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _markers.removeWhere((m) => m.markerId.value.startsWith('driver_'));
         for (final d in drivers) {
-          if (d.lat != null && d.lng != null) {
-            _markers.add(
-              Marker(
-                markerId: MarkerId('driver_${d.id}'),
-                position: LatLng(double.parse(d.lat!), double.parse(d.lng!)),
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-                infoWindow: InfoWindow(title: d.nombreCompleto, snippet: '${d.unidad ?? ''} - ${d.placas ?? ''}'),
-              ),
-            );
+          if (d.lat == null || d.lng == null) continue;
+          final lat = double.tryParse(d.lat!);
+          final lng = double.tryParse(d.lng!);
+          if (lat == null || lng == null) continue;
+          final nueva = LatLng(lat, lng);
+
+          // Calcular rumbo (bearing) para rotar el carrito, como Uber/Didi
+          final anterior = _driverPos[d.id];
+          if (anterior != null && (anterior.latitude != lat || anterior.longitude != lng)) {
+            _driverBearing[d.id] = _calcularBearing(anterior, nueva);
           }
+          _driverPos[d.id] = nueva;
+
+          final dist = d.distanciaKm != null ? 'a ${d.distanciaKm!.toStringAsFixed(1)} km' : '';
+          final unidad = d.unidad ?? '';
+          final snippet = [unidad, dist].where((s) => s.isNotEmpty).join(' - ');
+
+          _markers.add(
+            Marker(
+              markerId: MarkerId('driver_${d.id}'),
+              position: nueva,
+              rotation: _driverBearing[d.id] ?? 0,
+              flat: true,
+              anchor: const Offset(0.5, 0.5),
+              icon: _carIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+              infoWindow: InfoWindow(title: d.nombreCompleto, snippet: snippet),
+            ),
+          );
         }
       });
     } catch (_) {
       setState(() => _mapError = true);
     }
+  }
+
+  /// Rumbo en grados desde el punto `a` hacia el punto `b` (0 = norte).
+  double _calcularBearing(LatLng a, LatLng b) {
+    final dLon = (b.longitude - a.longitude) * math.pi / 180.0;
+    final lat1 = a.latitude * math.pi / 180.0;
+    final lat2 = b.latitude * math.pi / 180.0;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final brng = math.atan2(y, x) * 180.0 / math.pi;
+    return (brng + 360.0) % 360.0;
   }
 
   void _navigateToServiceRequest() {

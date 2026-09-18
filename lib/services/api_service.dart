@@ -132,6 +132,27 @@ class ApiService {
     }
   }
 
+  // ─── PAGO EN LINEA ───────────────────────────────────────────
+
+  Future<ApiResponse> mercadoPagoPreferencia(int idServicio) =>
+      postRoot('Pago', 'MercadoPagoPreferencia', body: { 'idServicio': idServicio });
+
+  Future<ApiResponse> mercadoPagoConfirmar(int idServicio, String paymentId) =>
+      postRoot('Pago', 'MercadoPagoConfirmar', body: { 'idServicio': idServicio, 'paymentId': paymentId });
+
+  Future<ApiResponse> paypalCrearOrden(int idServicio) =>
+      postRoot('Pago', 'PayPalCrearOrden', body: { 'idServicio': idServicio });
+
+  Future<ApiResponse> paypalCapturar(int idServicio, String orderId) =>
+      postRoot('Pago', 'PayPalCapturar', body: { 'idServicio': idServicio, 'orderId': orderId });
+
+  /// Registra/actualiza el token de notificaciones push (FCM) del pasajero.
+  Future<ApiResponse> actualizarToken(int idPasajero, String token) =>
+      postRoot('Pasajero', 'ActualizarToken', body: {
+        'idPasajero': idPasajero,
+        'googlekey': token,
+      });
+
   // ─── PARADAS INTERMEDIAS ─────────────────────────────────────
 
   Future<ApiResponse> agregarParada(int idServicio, int orden, String direccion, String lat, String lng, {String? referencia, String? notas}) =>
