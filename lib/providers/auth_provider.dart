@@ -18,6 +18,8 @@ class AuthProvider extends ChangeNotifier {
   String? _error;
   String? _pendingAccount;
   String? _pendingPass;
+  String? _pendingTelefono;
+  String? _pendingCodigoPais;
 
   UserModel? get user => _user;
   bool get loading => _loading;
@@ -83,6 +85,8 @@ class AuthProvider extends ChangeNotifier {
         if (id != null && id > 0) {
           _pendingAccount = data['account'] as String?;
           _pendingPass = data['pass'] as String?;
+          _pendingTelefono = data['telefono']?.toString();
+          _pendingCodigoPais = data['codigopaistel']?.toString();
           _loading = false;
           notifyListeners();
           Logger.i('Auth', 'register() OK - pending verification for account=$_pendingAccount');
@@ -110,17 +114,47 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Envia (por WhatsApp) el codigo de verificacion al telefono indicado.
+  Future<bool> enviarCodigoVerificacion({String? telefono, String? codigopaistel}) async {
+    final tel = telefono ?? _pendingTelefono;
+    final pais = codigopaistel ?? _pendingCodigoPais;
+    if (tel == null || tel.isEmpty) return false;
+    try {
+      final res = await _api.post('/EnviarCodigoVerificacion', body: {
+        'telefono': tel,
+        'codigopaistel': pais ?? '52',
+      });
+      Logger.i('Auth', 'enviarCodigoVerificacion() success=${res.success}');
+      return res.success;
+    } catch (e) {
+      Logger.e('Auth', 'enviarCodigoVerificacion() exception: $e');
+      return false;
+    }
+  }
+
+  /// Valida el codigo contra el backend y, si es correcto, inicia sesion.
   Future<bool> verifyRegistrationCode(String code) async {
-    Logger.i('Auth', 'verifyRegistrationCode() code=$code pending=${_pendingAccount != null}');
-    if (code == '000000' && _pendingAccount != null && _pendingPass != null) {
-      Logger.i('Auth', 'verifyRegistrationCode() calling login for $_pendingAccount');
+    if (_pendingAccount == null || _pendingPass == null) return false;
+    try {
+      final res = await _api.post('/ValidarCodigoVerificacion', body: {
+        'codigo': code,
+        'telefono': _pendingTelefono,
+        'codigopaistel': _pendingCodigoPais ?? '52',
+      });
+      if (!res.success) {
+        _error = res.getMensaje();
+        Logger.w('Auth', 'verifyRegistrationCode() rechazado: $_error');
+        return false;
+      }
       final result = await login(_pendingAccount!, _pendingPass!);
       _pendingAccount = null;
       _pendingPass = null;
       return result;
+    } catch (e) {
+      Logger.e('Auth', 'verifyRegistrationCode() exception: $e');
+      _error = 'Error de conexion';
+      return false;
     }
-    Logger.w('Auth', 'verifyRegistrationCode() skipped: code valid=${code == '000000'} pending=${_pendingAccount != null}');
-    return false;
   }
 
   Future<bool> resetPassword({required int idPasajero, required String newPassword}) async {

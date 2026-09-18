@@ -8,12 +8,17 @@ class VerifyCodeScreen extends StatefulWidget {
   final String? title;
   final String? subtitle;
 
+  /// Valida el codigo contra el backend. Si se define, tiene prioridad
+  /// sobre la verificacion local.
+  final Future<bool> Function(String code)? onVerify;
+
   const VerifyCodeScreen({
     super.key,
     required this.phoneNumber,
     required this.onVerified,
     this.title,
     this.subtitle,
+    this.onVerify,
   });
 
   @override
@@ -56,12 +61,18 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
       return;
     }
     setState(() => _isVerifying = true);
-    await Future.delayed(const Duration(milliseconds: 300));
+    bool ok;
+    if (widget.onVerify != null) {
+      ok = await widget.onVerify!(code);
+    } else {
+      await Future.delayed(const Duration(milliseconds: 300));
+      ok = code == '000000';
+    }
     if (!mounted) return;
-    if (code == '000000') {
+    setState(() => _isVerifying = false);
+    if (ok) {
       widget.onVerified();
     } else {
-      setState(() => _isVerifying = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Codigo incorrecto, intente de nuevo')),
       );

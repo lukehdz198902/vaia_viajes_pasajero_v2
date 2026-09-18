@@ -66,7 +66,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Logger.i('RegisterScreen', 'register() result: success=$success error=${auth.error}');
     if (success) {
       if (!mounted) return;
-      final phone = '${_codigoPaisController.text.trim()} ${_telefonoController.text.trim()}';
+      final telefono = _telefonoController.text.trim();
+      final codigoPais = _codigoPaisController.text.trim();
+      final phone = '$codigoPais $telefono';
+
+      // Enviar el codigo real por WhatsApp
+      final enviado = await auth.enviarCodigoVerificacion(
+        telefono: telefono,
+        codigopaistel: codigoPais,
+      );
+      if (!mounted) return;
+      if (!enviado) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo enviar el codigo por WhatsApp. Intenta reenviarlo.'),
+            backgroundColor: VaiaColors.warning,
+          ),
+        );
+      }
+
       final nav = Navigator.of(context);
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -74,19 +92,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             phoneNumber: phone,
             title: 'Verificar Registro',
             subtitle: 'Ingrese el codigo enviado a su WhatsApp',
+            onVerify: (code) => auth.verifyRegistrationCode(code),
             onVerified: () {
-              auth.verifyRegistrationCode('000000').then((loggedIn) {
-                if (loggedIn) {
-                  nav.pushAndRemoveUntil(
-                    PageRouteBuilder(
-                      pageBuilder: (_, __, ___) => const HomeScreen(),
-                      transitionsBuilder: (_, anim, __, child) =>
-                          FadeTransition(opacity: anim, child: child),
-                    ),
-                    (route) => false,
-                  );
-                }
-              });
+              nav.pushAndRemoveUntil(
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const HomeScreen(),
+                  transitionsBuilder: (_, anim, __, child) =>
+                      FadeTransition(opacity: anim, child: child),
+                ),
+                (route) => false,
+              );
             },
           ),
         ),
