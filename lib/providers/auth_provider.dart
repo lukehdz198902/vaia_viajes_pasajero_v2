@@ -311,9 +311,27 @@ class AuthProvider extends ChangeNotifier {
       }
       notifyListeners();
       _registrarToken();
+      // Refresca el perfil para traer las banderas de verificacion actualizadas.
+      await refreshPerfil();
       return true;
     }
     return false;
+  }
+
+  /// Refresca el perfil desde el servidor y lo persiste localmente.
+  Future<void> refreshPerfil() async {
+    if (_user == null) return;
+    try {
+      final res = await _api.get('/ObtenerPerfil', params: {'idPasajero': _user!.id.toString()});
+      if (res.success && res.firstOrNull() is Map) {
+        final data = res.firstOrNull() as Map<String, dynamic>;
+        _user = UserModel.fromJson(data);
+        await _storage.saveUserData(data);
+        notifyListeners();
+      }
+    } catch (e) {
+      Logger.w('Auth', 'refreshPerfil exception: $e');
+    }
   }
 
   /// Registra el token de notificaciones push (FCM) en el backend.

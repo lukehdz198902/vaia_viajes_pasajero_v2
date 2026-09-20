@@ -20,6 +20,7 @@ class UserModel {
   final String? mensaje;
   final bool eslogueadocongoogle;
   final bool correoConfirmado;
+  final bool telefonoConfirmado;
 
   UserModel({
     required this.id,
@@ -43,6 +44,7 @@ class UserModel {
     this.mensaje,
     this.eslogueadocongoogle = false,
     this.correoConfirmado = false,
+    this.telefonoConfirmado = false,
   });
 
   String get nombreCompleto => '$nombre $appaterno $apmaterno'.trim();
@@ -69,6 +71,7 @@ class UserModel {
         mensaje: mensaje,
         eslogueadocongoogle: eslogueadocongoogle,
         correoConfirmado: correoConfirmado ?? this.correoConfirmado,
+        telefonoConfirmado: telefonoConfirmado,
       );
 
   Map<String, dynamic> toJson() => {
@@ -93,6 +96,7 @@ class UserModel {
         'mensaje': mensaje,
         'eslogueadocongoogle': eslogueadocongoogle,
         'correoconfirmado': correoConfirmado,
+        'telefonoconfirmado': telefonoConfirmado,
       };
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -118,6 +122,7 @@ class UserModel {
       mensaje: json['mensaje'] ?? json['Mensaje'],
       eslogueadocongoogle: json['eslogueadocongoogle'] == true || json['Eslogueadocongoogle'] == true,
       correoConfirmado: json['correoconfirmado'] == true || json['Correoconfirmado'] == true,
+      telefonoConfirmado: json['telefonoconfirmado'] == true || json['Telefonoconfirmado'] == true,
     );
   }
 }

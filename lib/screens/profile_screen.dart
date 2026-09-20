@@ -156,6 +156,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
+  Widget _badgeVerificacion(IconData icon, String label, bool verificado) {
+    final color = verificado ? const Color(0xFF16A34A) : const Color(0xFFF59E0B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(verificado ? Icons.verified_rounded : Icons.error_outline_rounded, size: 14, color: color),
+        const SizedBox(width: 5),
+        Text(
+          '$label ${verificado ? "verificado" : "sin verificar"}',
+          style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700),
+        ),
+      ]),
+    );
+  }
+
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
 
@@ -217,6 +237,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontSize: 14,
                         color: AppTheme.textMedium,
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        _badgeVerificacion(Icons.alternate_email_rounded, 'Correo', user?.correoConfirmado == true),
+                        _badgeVerificacion(Icons.phone_android_rounded, 'Telefono', user?.telefonoConfirmado == true),
+                      ],
                     ),
                   ],
                 ),
