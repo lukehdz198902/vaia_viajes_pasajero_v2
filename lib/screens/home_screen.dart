@@ -362,6 +362,18 @@ class _HomeScreenState extends State<HomeScreen> {
                           letterSpacing: -0.2,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: rideProv.conectadoWs ? 'Conectado en tiempo real' : 'Reconectando...',
+                        child: Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            color: rideProv.conectadoWs ? VaiaColors.success : VaiaColors.warning,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
