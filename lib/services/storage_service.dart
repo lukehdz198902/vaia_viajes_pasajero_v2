@@ -10,6 +10,8 @@ class StorageService {
   static const _userPhoneKey = 'user_phone';
   static const _userIdCompaniaKey = 'user_id_compania';
   static const _userDataKey = 'user_data';
+  static const _onboardingKey = 'pasajero_onboarding';
+  static const _terminosKey = 'pasajero_terminos';
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
@@ -52,6 +54,28 @@ class StorageService {
       'telefono': prefs.getString(_userPhoneKey) ?? base['telefono'] ?? '',
       'idcompania': prefs.getInt(_userIdCompaniaKey) ?? base['idcompania'] ?? 0,
     };
+  }
+
+  // ─── ONBOARDING / TERMINOS ───────────────────────────────────
+
+  Future<void> setOnboardingCompletado(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_onboardingKey, v);
+  }
+
+  Future<bool> getOnboardingCompletado() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_onboardingKey) ?? false;
+  }
+
+  Future<void> setTerminosAceptados(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_terminosKey, v);
+  }
+
+  Future<bool> getTerminosAceptados() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_terminosKey) ?? false;
   }
 
   Future<void> clearAll() async {

@@ -17,6 +17,8 @@ import '../screens/recover_password_screen.dart';
 import '../screens/scheduled_rides_screen.dart';
 import '../screens/schedule_ride_screen.dart';
 import '../screens/support_chat_screen.dart';
+import '../screens/onboarding_screen.dart';
+import '../screens/permisos_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -38,6 +40,8 @@ class AppRoutes {
   static const String scheduledRides = '/scheduled-rides';
   static const String scheduleRide = '/schedule-ride';
   static const String supportChat = '/support-chat';
+  static const String onboarding = '/onboarding';
+  static const String permisos = '/permisos';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -53,6 +57,8 @@ class AppRoutes {
       recoverPassword: (_) => const RecoverPasswordScreen(),
       scheduledRides: (_) => const ScheduledRidesScreen(),
       scheduleRide: (_) => const ScheduleRideScreen(),
+      onboarding: (_) => const OnboardingScreen(),
+      permisos: (_) => const PermisosScreen(),
     };
   }
 

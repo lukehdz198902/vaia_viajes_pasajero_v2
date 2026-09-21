@@ -282,6 +282,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            _sectionHeader('Permisos y privacidad'),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, '/permisos'),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                    icon: const Icon(Icons.verified_user_outlined),
+                    label: const Text('Ver permisos y politicas'),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
             _sectionHeader('Acerca de'),
             const SizedBox(height: 8),
             Card(

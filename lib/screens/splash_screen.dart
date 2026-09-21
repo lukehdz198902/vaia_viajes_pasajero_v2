@@ -4,8 +4,10 @@ import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import '../../services/logger.dart';
+import '../../services/storage_service.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
+import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -31,6 +33,17 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _bootstrap() async {
     final auth = context.read<AuthProvider>();
+    // Primer arranque: primero los permisos y la aceptacion de terminos.
+    final storage = StorageService();
+    final onboarding = await storage.getOnboardingCompletado();
+    if (!mounted || _navigated) return;
+    if (!onboarding) {
+      _navigated = true;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+      return;
+    }
     bool isLoggedIn = false;
     try {
       isLoggedIn = await auth.tryAutoLogin();
