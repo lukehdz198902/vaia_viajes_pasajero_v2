@@ -256,52 +256,6 @@ class RideProvider extends ChangeNotifier {
     } catch (_) {
       Logger.e('Ride', 'Status poll error');
     }
-    // Simulacion solo si el WS no esta conectado (modo offline/desarrollo)
-    if (!_conectadoWs && (_useSimulation || (_pollCount >= 2 && _currentRide?.idConductor == null &&
-        (_currentRide?.estatus ?? '').toLowerCase() == 'solicitado'))) {
-      _runSimulation();
-    }
-  }
-
-  void _runSimulation() {
-    _useSimulation = true;
-    Logger.i('Ride', 'Simulation: conductor accepted the ride');
-    final c = _currentRide!;
-    _currentRide = RideModel.fromJson({
-      'id': c.id, 'idpasajero': _auth.userId,
-      'direccionorigen': c.direccionOrigen, 'latorigen': c.latOrigen, 'lngorigen': c.lngOrigen,
-      'direcciondestination': c.direccionDestino, 'latdestination': c.latDestino, 'lngdestination': c.lngDestino,
-      'distanciametros': c.distanciaMetros, 'durationsegundos': c.duracionSegundos ?? 1200,
-      'costoestimado': c.costoEstimado,
-      'idconductor': 1,
-      'estatus': 'En Camino',
-      'c_nombre': 'Carlos (Simulado)', 'c_appaterno': 'Martinez',
-      'c_tel': '5511111111',
-      'unidad': 'Versa 2023', 'placas': 'SIM-0001',
-      'colornombre': 'Azul', 'numeroasientos': 4,
-      'nombresubmarca': 'Versa', 'nombremarca': 'Nissan',
-    });
-    _buscandoConductor = false;
-    notifyListeners();
-    Future.delayed(const Duration(seconds: 12), () {
-      if (_currentRide == null) return;
-      final c2 = _currentRide!;
-      _currentRide = RideModel.fromJson({
-        ...c2.toJson(),
-        'idconductor': 1, 'estatus': 'En Viaje', 'servicioiniciado': true,
-      });
-      notifyListeners();
-    });
-    Future.delayed(const Duration(seconds: 25), () {
-      if (_currentRide == null) return;
-      final c3 = _currentRide!;
-      _currentRide = RideModel.fromJson({
-        ...c3.toJson(),
-        'idconductor': 1, 'estatus': 'Finalizado', 'llegoasudestino': true,
-      });
-      _pollTimer?.cancel();
-      notifyListeners();
-    });
   }
 
   void stopPolling() {
