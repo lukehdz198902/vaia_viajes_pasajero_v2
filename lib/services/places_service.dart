@@ -26,6 +26,17 @@ class PlacesService {
   );
   static const String _baseUrl = 'https://maps.googleapis.com/maps/api/place';
 
+  /// Paquete y huella SHA-1 de la app. Se envian a Google porque la llave esta
+  /// restringida a aplicaciones Android y las llamadas REST los requieren.
+  static const String paqueteAndroid = 'prozoft.com.vaia';
+  static const String sha1Android = '8D4BB32F55BD8255FD5436D335D636F8A1F0F742';
+
+  static Map<String, String> get _headers => {
+        'Accept': 'application/json',
+        'X-Android-Package': paqueteAndroid,
+        'X-Android-Cert': sha1Android,
+      };
+
   /// Ultimo error devuelto por Google (vacio si todo bien).
   static String ultimoError = '';
 
@@ -52,7 +63,7 @@ class PlacesService {
         params['strictbounds'] = 'false';
       }
       final url = Uri.parse('$_baseUrl/autocomplete/json').replace(queryParameters: params);
-      final res = await http.get(url, headers: {'Accept': 'application/json'});
+      final res = await http.get(url, headers: _headers);
       if (res.statusCode != 200) {
         ultimoError = 'HTTP ${res.statusCode}';
         return [];
@@ -92,7 +103,7 @@ class PlacesService {
         'language': 'es',
         'fields': 'name,formatted_address,geometry',
       });
-      final res = await http.get(url, headers: {'Accept': 'application/json'});
+      final res = await http.get(url, headers: _headers);
       if (res.statusCode != 200) {
         ultimoError = 'HTTP ${res.statusCode}';
         return null;

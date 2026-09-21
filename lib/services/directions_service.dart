@@ -20,6 +20,16 @@ class DirectionsService {
 
   static String ultimoError = '';
 
+  /// Paquete y huella SHA-1 de la app (llave restringida a apps Android).
+  static const String paqueteAndroid = 'prozoft.com.vaia';
+  static const String sha1Android = '8D4BB32F55BD8255FD5436D335D636F8A1F0F742';
+
+  static Map<String, String> get _headers => {
+        'Accept': 'application/json',
+        'X-Android-Package': paqueteAndroid,
+        'X-Android-Cert': sha1Android,
+      };
+
   static Future<RutaInfo?> ruta({
     required LatLng origen,
     required LatLng destino,
@@ -39,7 +49,7 @@ class DirectionsService {
       }
       final url = Uri.parse('https://maps.googleapis.com/maps/api/directions/json')
           .replace(queryParameters: params);
-      final res = await http.get(url);
+      final res = await http.get(url, headers: _headers);
       if (res.statusCode != 200) {
         ultimoError = 'HTTP ${res.statusCode}';
         return null;
