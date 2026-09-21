@@ -69,6 +69,8 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         Logger.i('Auth', 'login() OK - user ${_user!.nombreCompleto} logged in');
         _registrarToken();
+        // Trae el estatus REAL del servidor (correo/telefono verificados).
+        await refreshPerfil();
         return true;
       }
       _error = res.getMensaje();
