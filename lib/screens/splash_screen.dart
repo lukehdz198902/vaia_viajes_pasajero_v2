@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import '../../services/logger.dart';
 import '../../services/storage_service.dart';
+import '../../services/biometric_service.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
 import 'onboarding_screen.dart';
@@ -44,6 +45,20 @@ class _SplashScreenState extends State<SplashScreen>
       );
       return;
     }
+    // Seguridad biometrica: si esta habilitada, se exige al abrir la app.
+    if (await storage.getBiometriaHabilitada()) {
+      if (!mounted || _navigated) return;
+      final ok = await BiometricService.autenticar(motivo: 'Desbloquea Vaia para continuar');
+      if (!mounted || _navigated) return;
+      if (!ok) {
+        _navigated = true;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
+    }
+
     bool isLoggedIn = false;
     try {
       isLoggedIn = await auth.tryAutoLogin();

@@ -258,6 +258,12 @@ class ApiService {
   Future<ApiResponse> cambiarCorreo(int idPasajero, String correoNuevo, String codigo) =>
       post('/CambiarCorreo', body: {'idPasajero': idPasajero, 'correoNuevo': correoNuevo, 'codigo': codigo});
 
+  /// Recupera la contrasena validando el codigo enviado por WhatsApp.
+  Future<ApiResponse> recuperarPassword(String telefono, String codigo, String passNuevo) =>
+      post('/RecuperarPassword', body: {
+        'telefono': telefono, 'codigo': codigo, 'passNuevo': passNuevo,
+      });
+
   Future<ApiResponse> iniciarSesionGoogle(String idToken, {int idCompania = 1, String? googlekey}) =>
       post('/IniciarSesionGoogle', body: {
         'idToken': idToken,

@@ -1,5 +1,6 @@
 package prozoft.com.vaia
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FlutterFragmentActivity es requerido por local_auth para la biometria.
+class MainActivity : FlutterFragmentActivity()

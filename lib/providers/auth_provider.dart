@@ -289,6 +289,26 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Recupera la contrasena validando el codigo enviado por WhatsApp.
+  Future<bool> recuperarPassword(String telefono, String codigo, String passNuevo) async {
+    _loading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final res = await _api.recuperarPassword(telefono, codigo, passNuevo);
+      _loading = false;
+      if (!res.success) _error = res.getMensaje();
+      notifyListeners();
+      return res.success;
+    } catch (e) {
+      Logger.e('Auth', 'recuperarPassword() exception: $e');
+      _error = 'Error de conexion';
+      _loading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     if (_user != null) {
       await _api.post('/CerrarSesion', body: {

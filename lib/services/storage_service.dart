@@ -12,6 +12,7 @@ class StorageService {
   static const _userDataKey = 'user_data';
   static const _onboardingKey = 'pasajero_onboarding';
   static const _terminosKey = 'pasajero_terminos';
+  static const _biometriaKey = 'pasajero_biometria';
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
@@ -76,6 +77,16 @@ class StorageService {
   Future<bool> getTerminosAceptados() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_terminosKey) ?? false;
+  }
+
+  Future<void> setBiometriaHabilitada(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_biometriaKey, v);
+  }
+
+  Future<bool> getBiometriaHabilitada() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_biometriaKey) ?? false;
   }
 
   Future<void> clearAll() async {

@@ -25,6 +25,7 @@ dependencies:
   image_picker: ^1.2.3
   permission_handler: ^13.0.2
   webview_flutter: ^4.14.1
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:
