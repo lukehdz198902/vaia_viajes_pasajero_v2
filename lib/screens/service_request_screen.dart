@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
+import '../../services/directions_service.dart';
 import 'service_status_screen.dart';
 import 'place_search_screen.dart';
 
@@ -40,6 +41,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   LatLng? _destinationLatLng;
   bool _isSettingOrigin = false;
   final List<Map<String, dynamic>> _paradas = [];
+  final Set<Polyline> _polylines = {};
 
   final List<String> _tripTypes = ['URBANO', 'INTERURBANO', 'AEROPUERTO'];
 
@@ -129,19 +131,47 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 60));
   }
 
-  void _calculateEstimate() {
+  Future<void> _calculateEstimate() async {
     if (_originLatLng == null || _destinationLatLng == null) return;
-    final dist = _calculateDistance(
+
+    // Respaldo inmediato en linea recta mientras responde Google.
+    final distRecta = _calculateDistance(
       _originLatLng!.latitude, _originLatLng!.longitude,
       _destinationLatLng!.latitude, _destinationLatLng!.longitude,
     );
-    final speedMps = 8.33;
-    final duration = (dist / speedMps).round();
-    final cost = _calculateCost(dist, _selectedTripType);
     setState(() {
-      _estimatedDistance = dist;
-      _estimatedDuration = duration;
-      _estimatedCost = cost;
+      _estimatedDistance = distRecta;
+      _estimatedDuration = (distRecta / 8.33).round();
+      _estimatedCost = _calculateCost(distRecta, _selectedTripType);
+      _applyPromo();
+    });
+
+    // Ruta real por calles (polilinea + distancia + tiempo) con Google.
+    final paradas = _paradas
+        .map((p) => LatLng(
+              double.tryParse(p['lat']?.toString() ?? '') ?? 0,
+              double.tryParse(p['lng']?.toString() ?? '') ?? 0,
+            ))
+        .where((p) => p.latitude != 0 && p.longitude != 0)
+        .toList();
+    final ruta = await DirectionsService.ruta(
+      origen: _originLatLng!,
+      destino: _destinationLatLng!,
+      paradas: paradas,
+    );
+    if (!mounted || ruta == null) return;
+    setState(() {
+      _polylines
+        ..clear()
+        ..add(Polyline(
+          polylineId: const PolylineId('ruta'),
+          points: ruta.puntos,
+          color: VaiaColors.primary,
+          width: 5,
+        ));
+      _estimatedDistance = ruta.distanciaMetros.toDouble();
+      _estimatedDuration = ruta.duracionSegundos;
+      _estimatedCost = _calculateCost(_estimatedDistance, _selectedTripType);
       _applyPromo();
     });
   }
@@ -282,7 +312,11 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
   Future<void> _openPlaceSearch({required bool isOrigin}) async {
     final result = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => PlaceSearchScreen(isOrigin: isOrigin)),
+      MaterialPageRoute(builder: (_) => PlaceSearchScreen(
+        isOrigin: isOrigin,
+        lat: isOrigin ? widget.currentLat : (_originLatLng?.latitude ?? widget.currentLat),
+        lng: isOrigin ? widget.currentLng : (_originLatLng?.longitude ?? widget.currentLng),
+      )),
     );
     if (result == null) return;
     final latLng = LatLng(result['lat'] as double, result['lng'] as double);
@@ -303,7 +337,11 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
 
   Future<void> _agregarParada() async {
     final result = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => const PlaceSearchScreen(isOrigin: false)),
+      MaterialPageRoute(builder: (_) => PlaceSearchScreen(
+        isOrigin: false,
+        lat: _originLatLng?.latitude ?? widget.currentLat,
+        lng: _originLatLng?.longitude ?? widget.currentLng,
+      )),
     );
     if (result == null) return;
     setState(() {
@@ -421,6 +459,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                 ),
                 onMapCreated: (ctrl) => _mapController = ctrl,
                 markers: _markers,
+                polylines: _polylines,
                 myLocationEnabled: true,
                 myLocationButtonEnabled: true,
                 onTap: _onMapTap,

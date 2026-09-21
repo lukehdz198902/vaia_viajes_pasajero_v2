@@ -5,7 +5,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 class PlacePrediction {
   final String placeId;
   final String description;
-  PlacePrediction({required this.placeId, required this.description});
+  final String? secondary;
+  PlacePrediction({required this.placeId, required this.description, this.secondary});
 }
 
 class PlaceDetail {
@@ -15,62 +16,106 @@ class PlaceDetail {
   PlaceDetail({required this.name, this.address, required this.location});
 }
 
+/// Busqueda de lugares con Google Places. Prioriza los resultados cercanos al
+/// origen y expone el error de Google para poder diagnosticar.
 class PlacesService {
-  static const String _apiKey = 'AIzaSyA8KcEviMocge0WyWD6HHl6juA8bmknyCk';
+  static const String _apiKey = String.fromEnvironment(
+    'PLACES_API_KEY',
+    defaultValue: 'AIzaSyCv40jOyFAG4VbgLpHhj55UtVvePmjvUvs',
+  );
   static const String _baseUrl = 'https://maps.googleapis.com/maps/api/place';
 
-  static Future<List<PlacePrediction>> autocomplete(String input) async {
-    if (input.trim().isEmpty) return [];
+  /// Ultimo error devuelto por Google (vacio si todo bien).
+  static String ultimoError = '';
+
+  static Future<List<PlacePrediction>> autocomplete(
+    String input, {
+    double? lat,
+    double? lng,
+  }) async {
+    ultimoError = '';
+    final q = input.trim();
+    if (q.isEmpty) return [];
     try {
-      final url = Uri.parse('$_baseUrl/autocomplete/json')
-          .replace(queryParameters: {
-        'input': input,
+      final params = <String, String>{
+        'input': q,
         'key': _apiKey,
         'language': 'es',
         'components': 'country:mx',
-        'types': 'geocode|establishment',
-      });
+      };
+      // Prioriza resultados cercanos al origen seleccionado.
+      if (lat != null && lng != null) {
+        params['location'] = '$lat,$lng';
+        params['origin'] = '$lat,$lng';
+        params['radius'] = '30000';
+        params['strictbounds'] = 'false';
+      }
+      final url = Uri.parse('$_baseUrl/autocomplete/json').replace(queryParameters: params);
       final res = await http.get(url, headers: {'Accept': 'application/json'});
-      if (res.statusCode != 200) return [];
-      final data = json.decode(res.body);
-      if (data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') return [];
+      if (res.statusCode != 200) {
+        ultimoError = 'HTTP ${res.statusCode}';
+        return [];
+      }
+      final data = json.decode(res.body) as Map<String, dynamic>;
+      final status = data['status']?.toString() ?? '';
+      if (status != 'OK' && status != 'ZERO_RESULTS') {
+        ultimoError = (data['error_message']?.toString().isNotEmpty ?? false)
+            ? data['error_message'].toString()
+            : status;
+        return [];
+      }
       final predictions = data['predictions'] as List? ?? [];
       return predictions
           .map((p) => PlacePrediction(
-                placeId: p['place_id'] ?? '',
-                description: p['description'] ?? '',
+                placeId: p['place_id']?.toString() ?? '',
+                description: p['structured_formatting']?['main_text']?.toString() ??
+                    p['description']?.toString() ??
+                    '',
+                secondary: p['structured_formatting']?['secondary_text']?.toString() ??
+                    p['description']?.toString(),
               ))
+          .where((p) => p.placeId.isNotEmpty)
           .toList();
-    } catch (_) {
+    } catch (e) {
+      ultimoError = e.toString();
       return [];
     }
   }
 
   static Future<PlaceDetail?> getPlaceDetail(String placeId) async {
+    ultimoError = '';
     try {
-      final url = Uri.parse('$_baseUrl/details/json')
-          .replace(queryParameters: {
+      final url = Uri.parse('$_baseUrl/details/json').replace(queryParameters: {
         'place_id': placeId,
         'key': _apiKey,
         'language': 'es',
         'fields': 'name,formatted_address,geometry',
       });
       final res = await http.get(url, headers: {'Accept': 'application/json'});
-      if (res.statusCode != 200) return null;
-      final data = json.decode(res.body);
-      if (data['status'] != 'OK') return null;
+      if (res.statusCode != 200) {
+        ultimoError = 'HTTP ${res.statusCode}';
+        return null;
+      }
+      final data = json.decode(res.body) as Map<String, dynamic>;
+      if (data['status']?.toString() != 'OK') {
+        ultimoError = (data['error_message']?.toString().isNotEmpty ?? false)
+            ? data['error_message'].toString()
+            : (data['status']?.toString() ?? 'Error');
+        return null;
+      }
       final result = data['result'];
-      final loc = result['geometry']?['location'];
-      if (loc == null) return null;
+      final loc = result?['geometry']?['location'];
+      if (loc == null) {
+        ultimoError = 'Sin coordenadas';
+        return null;
+      }
       return PlaceDetail(
-        name: result['name'] ?? '',
-        address: result['formatted_address'],
-        location: LatLng(
-          (loc['lat'] as num).toDouble(),
-          (loc['lng'] as num).toDouble(),
-        ),
+        name: result['name']?.toString() ?? '',
+        address: result['formatted_address']?.toString(),
+        location: LatLng((loc['lat'] as num).toDouble(), (loc['lng'] as num).toDouble()),
       );
-    } catch (_) {
+    } catch (e) {
+      ultimoError = e.toString();
       return null;
     }
   }

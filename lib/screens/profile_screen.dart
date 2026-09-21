@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../config/theme.dart';
+import '../../widgets/email_verification_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,6 +34,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _showPhoneSection = false;
   bool _codigoEnviado = false;
 
+  final _picker = ImagePicker();
+  String? _fotoBase64;
+  DateTime? _fechaNac;
+  String _genero = '';
+
   @override
   void initState() {
     super.initState();
@@ -40,7 +49,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _apmaternoCtrl.text = user.apmaterno;
       _fechaNacCtrl.text = user.fechanacimiento ?? '';
       _generoCtrl.text = user.genero ?? '';
+      if ((user.fechanacimiento ?? '').isNotEmpty) {
+        _fechaNac = DateTime.tryParse(user.fechanacimiento!);
+      }
+      _genero = user.genero ?? '';
     }
+  }
+
+  /// Sube o cambia la foto de perfil (camara o galeria).
+  Future<void> _cambiarFoto() async {
+    final origen = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.photo_camera_outlined), title: const Text('Tomar foto'), onTap: () => Navigator.pop(ctx, ImageSource.camera)),
+          ListTile(leading: const Icon(Icons.photo_library_outlined), title: const Text('Elegir de galeria'), onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
+        ]),
+      ),
+    );
+    if (origen == null) return;
+    final foto = await _picker.pickImage(source: origen, imageQuality: 55, maxWidth: 800);
+    if (foto == null) return;
+    final bytes = await foto.readAsBytes();
+    if (!mounted) return;
+    setState(() => _fotoBase64 = base64Encode(bytes));
+  }
+
+  Future<void> _seleccionarFecha() async {
+    final ahora = DateTime.now();
+    final elegida = await showDatePicker(
+      context: context,
+      initialDate: _fechaNac ?? DateTime(ahora.year - 25, 1, 1),
+      firstDate: DateTime(1920),
+      lastDate: DateTime(ahora.year - 10, ahora.month, ahora.day),
+      helpText: 'Selecciona tu fecha de nacimiento',
+    );
+    if (elegida == null) return;
+    setState(() => _fechaNac = elegida);
   }
 
   @override
@@ -66,11 +111,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'nombre': _nombreCtrl.text.trim(),
       'appaterno': _appaternoCtrl.text.trim(),
       'apmaterno': _apmaternoCtrl.text.trim(),
-      'fechanacimiento': _fechaNacCtrl.text.trim(),
-      'genero': _generoCtrl.text.trim(),
+      if (_fechaNac != null) 'fechanacimiento': DateFormat('yyyy-MM-dd').format(_fechaNac!),
+      if (_genero.isNotEmpty) 'genero': _genero,
+      if (_fotoBase64 != null) 'fotoperfil': _fotoBase64,
     });
     if (!mounted) return;
     setState(() => _isLoading = false);
+    if (success) {
+      await context.read<AuthProvider>().refreshPerfil();
+    }
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(success
@@ -156,23 +206,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
-  Widget _badgeVerificacion(IconData icon, String label, bool verificado) {
-    final color = verificado ? const Color(0xFF16A34A) : const Color(0xFFF59E0B);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(verificado ? Icons.verified_rounded : Icons.error_outline_rounded, size: 14, color: color),
-        const SizedBox(width: 5),
-        Text(
-          '$label ${verificado ? "verificado" : "sin verificar"}',
-          style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700),
+  Widget _buildDateField() {
+    return InkWell(
+      onTap: _seleccionarFecha,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Fecha de nacimiento',
+          prefixIcon: Icon(Icons.calendar_month_outlined),
+          border: OutlineInputBorder(),
         ),
-      ]),
+        child: Text(
+          _fechaNac != null ? DateFormat('dd/MM/yyyy').format(_fechaNac!) : 'Selecciona una fecha',
+          style: TextStyle(color: _fechaNac != null ? AppTheme.textDark : AppTheme.textLight),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGeneroField() {
+    return DropdownButtonFormField<String>(
+      initialValue: _genero.isEmpty ? null : _genero,
+      decoration: const InputDecoration(
+        labelText: 'Genero',
+        prefixIcon: Icon(Icons.wc_outlined),
+        border: OutlineInputBorder(),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'M', child: Text('Masculino')),
+        DropdownMenuItem(value: 'F', child: Text('Femenino')),
+        DropdownMenuItem(value: 'O', child: Text('Otro')),
+      ],
+      onChanged: (v) => setState(() => _genero = v ?? ''),
+    );
+  }
+
+  Widget _badgeVerificacion(IconData icon, String label, bool verificado, {VoidCallback? onVerificar}) {
+    final color = verificado ? const Color(0xFF16A34A) : const Color(0xFFF59E0B);
+    return InkWell(
+      onTap: verificado ? null : onVerificar,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(verificado ? Icons.verified_rounded : Icons.error_outline_rounded, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            verificado ? '$label verificado' : 'Verificar $label',
+            style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700),
+          ),
+          if (!verificado) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, size: 14, color: color),
+          ],
+        ]),
+      ),
     );
   }
 
@@ -200,16 +293,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    CircleAvatar(
-                      radius: 44,
-                      backgroundColor: AppTheme.bgLight,
-                      backgroundImage: user?.fotoperfil != null
-                          ? NetworkImage(user!.fotoperfil!)
-                          : null,
-                      child: user?.fotoperfil == null
-                          ? Icon(Icons.person,
-                              size: 44, color: AppTheme.textLight)
-                          : null,
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 44,
+                          backgroundColor: AppTheme.bgLight,
+                          backgroundImage: _fotoBase64 != null
+                              ? MemoryImage(base64Decode(_fotoBase64!))
+                              : (user?.fotoperfil != null && user!.fotoperfil!.isNotEmpty
+                                  ? NetworkImage(user.fotoperfil!)
+                                  : null),
+                          child: (_fotoBase64 == null && (user?.fotoperfil == null || user!.fotoperfil!.isEmpty))
+                              ? const Icon(Icons.person, size: 44, color: AppTheme.textLight)
+                              : null,
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Material(
+                            color: AppTheme.primary,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: _cambiarFoto,
+                              child: const Padding(
+                                padding: EdgeInsets.all(6),
+                                child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -244,8 +358,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       runSpacing: 6,
                       alignment: WrapAlignment.center,
                       children: [
-                        _badgeVerificacion(Icons.alternate_email_rounded, 'Correo', user?.correoConfirmado == true),
-                        _badgeVerificacion(Icons.phone_android_rounded, 'Telefono', user?.telefonoConfirmado == true),
+                        _badgeVerificacion(Icons.alternate_email_rounded, 'Correo', user?.correoConfirmado == true,
+                            onVerificar: () => EmailVerificationSheet.mostrar(context)),
+                        _badgeVerificacion(Icons.phone_android_rounded, 'Telefono', user?.telefonoConfirmado == true,
+                            onVerificar: () => setState(() => _showPhoneSection = true)),
                       ],
                     ),
                   ],
@@ -274,11 +390,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 12),
                     _buildField('Apellido materno', _apmaternoCtrl),
                     const SizedBox(height: 12),
-                    _buildField('Fecha de nacimiento', _fechaNacCtrl,
-                        hint: 'YYYY-MM-DD'),
+                    _buildDateField(),
                     const SizedBox(height: 12),
-                    _buildField('Genero', _generoCtrl,
-                        hint: 'Masculino / Femenino / Otro'),
+                    _buildGeneroField(),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
