@@ -19,9 +19,10 @@ class PlaceDetail {
 /// Busqueda de lugares con Google Places. Prioriza los resultados cercanos al
 /// origen y expone el error de Google para poder diagnosticar.
 class PlacesService {
+  // Llave movil (Android/iOS). La de web es distinta y solo se usa en el portal.
   static const String _apiKey = String.fromEnvironment(
     'PLACES_API_KEY',
-    defaultValue: 'AIzaSyCv40jOyFAG4VbgLpHhj55UtVvePmjvUvs',
+    defaultValue: 'AIzaSyA8KcEviMocge0WyWD6HHl6juA8bmknyCk',
   );
   static const String _baseUrl = 'https://maps.googleapis.com/maps/api/place';
 

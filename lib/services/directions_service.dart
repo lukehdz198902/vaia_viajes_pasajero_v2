@@ -12,9 +12,10 @@ class RutaInfo {
 /// Calcula la ruta estimada (polilinea, distancia y tiempo) con Google
 /// Directions. Si falla, deja el motivo en [ultimoError].
 class DirectionsService {
+  // Llave movil (Android/iOS). La de web es distinta y solo se usa en el portal.
   static const String _apiKey = String.fromEnvironment(
     'PLACES_API_KEY',
-    defaultValue: 'AIzaSyCv40jOyFAG4VbgLpHhj55UtVvePmjvUvs',
+    defaultValue: 'AIzaSyA8KcEviMocge0WyWD6HHl6juA8bmknyCk',
   );
 
   static String ultimoError = '';
