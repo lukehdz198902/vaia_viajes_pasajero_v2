@@ -14,6 +14,7 @@ import '../../providers/ride_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import 'service_request_screen.dart';
+import 'service_status_screen.dart';
 import 'login_screen.dart';
 import 'verify_email_screen.dart';
 
@@ -45,11 +46,26 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = context.read<AuthProvider>();
     if (auth.isLoggedIn) {
       context.read<RideProvider>().iniciarPresencia(auth.userId);
+      // Reanuda el servicio en curso si la app se cerro durante un viaje.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _restaurarServicio(auth.userId));
     }
     // Refrescar unidades cercanas cada 10 s mientras el pasajero esta en Inicio
     _driversTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadDrivers());
     _cargarIconoCarrito();
     WidgetsBinding.instance.addPostFrameCallback((_) => _verificarCorreoPendiente());
+  }
+
+  /// Si el pasajero tenia un servicio en curso, lo reanuda al reabrir la app.
+  Future<void> _restaurarServicio(int idPasajero) async {
+    final ride = context.read<RideProvider>();
+    if (ride.currentRide != null) return;
+    final ok = await ride.restaurarServicioActivo(idPasajero);
+    if (!mounted || !ok) return;
+    final estatus = (ride.currentRide?.estatus ?? '').toLowerCase();
+    if (estatus == 'finalizado' || estatus.contains('cancel')) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ServiceStatusScreen()),
+    );
   }
 
   /// Al ingresar, si el correo aun no esta verificado se solicita validarlo

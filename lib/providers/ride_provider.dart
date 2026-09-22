@@ -235,6 +235,26 @@ class RideProvider extends ChangeNotifier {
     _pollTimer = Timer.periodic(intervalo, (_) => _checkStatus());
   }
 
+  /// Recupera el servicio en curso al reabrir la app y reanuda el seguimiento.
+  Future<bool> restaurarServicioActivo(int idPasajero) async {
+    try {
+      final res = await _api.get('/ObtenerServicioActivo', params: {'idPasajero': idPasajero.toString()});
+      if (res.success && res.firstOrNull() is Map) {
+        final data = Map<String, dynamic>.from(res.firstOrNull() as Map);
+        _currentRide = RideModel.fromJson(data);
+        _buscandoConductor = _currentRide?.idConductor == null;
+        notifyListeners();
+        try { await _signalr.unirseAServicio(_currentRide!.id); } catch (_) {}
+        await listarParadas(_currentRide!.id);
+        _startPolling();
+        return true;
+      }
+    } catch (e) {
+      Logger.e('Ride', 'restaurarServicioActivo error: $e');
+    }
+    return false;
+  }
+
   Future<void> _checkStatus() async {
     if (_currentRide == null) return;
     _pollCount++;

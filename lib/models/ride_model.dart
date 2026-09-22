@@ -83,17 +83,24 @@ class RideModel {
     ConductorModel? cond;
     if (json['conductor'] != null) {
       cond = ConductorModel.fromJson(json['conductor']);
-    } else if (json['c_nombre'] != null) {
+    } else if (json['c_nombre'] != null || json['conductor_nombre'] != null) {
+      // El SP devuelve columnas "conductor_*"; los eventos usan "c_*".
       cond = ConductorModel(
         id: json['idconductor'] ?? 0,
-        nombre: json['c_nombre'] ?? '',
-        appaterno: json['c_appaterno'] ?? '',
-        apmaterno: json['c_apmaterno'] ?? '',
-        telefono: json['c_tel'] ?? '',
-        correo: json['c_email'] ?? '',
+        nombre: json['conductor_nombre'] ?? json['c_nombre'] ?? '',
+        appaterno: json['conductor_appaterno'] ?? json['c_appaterno'] ?? '',
+        apmaterno: json['conductor_apmaterno'] ?? json['c_apmaterno'] ?? '',
+        telefono: json['conductor_telefono'] ?? json['c_tel'] ?? '',
+        correo: json['conductor_email'] ?? json['c_email'] ?? '',
+        fotoperfil: json['conductor_foto'] ?? json['c_foto'] ?? json['fotoperfil'],
         unidad: json['unidad'] ?? '',
         placas: json['placas'] ?? '',
-        calificacion: json['c_calificacionpromedio'],
+        colorUnidad: json['colornombre'] ?? json['colorunidad'],
+        calificacion: _toDouble(json['conductor_calificacion'] ??
+            json['c_calificacionpromedio'] ?? json['calificacionpromedio']),
+        totalViajes: json['conductor_totalviajes'] ?? json['c_totalviajes'] ?? json['totalviajes'],
+        lat: json['conductor_lat']?.toString(),
+        lng: json['conductor_lng']?.toString(),
       );
     }
     return RideModel(

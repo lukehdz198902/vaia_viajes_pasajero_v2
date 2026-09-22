@@ -364,6 +364,9 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                               '${cond.unidad ?? ''} ${cond.placas ?? ''}'.trim(),
                               style: TextStyle(fontSize: 13, color: AppTheme.textMedium),
                             ),
+                            if ((cond.totalViajes ?? 0) > 0)
+                              Text('${cond.totalViajes} viajes completados',
+                                  style: const TextStyle(fontSize: 11.5, color: AppTheme.textLight)),
                           ],
                         ],
                       ),
