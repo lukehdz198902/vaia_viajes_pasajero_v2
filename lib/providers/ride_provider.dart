@@ -62,32 +62,38 @@ class RideProvider extends ChangeNotifier {
     });
   }
 
+  /// Detecta si el payload del WebSocket trae el snapshot completo del servicio.
+  bool _esSnapshot(Map<String, dynamic> data) =>
+      (data['id'] != null || data['idservicio'] != null) &&
+      (data['direccionorigen'] != null || data['idpasajero'] != null || data['idconductor'] != null);
+
   void _onRealtimeEvent(RealtimeEvent event) {
     Logger.i('Ride', 'Realtime: ${event.tipo}');
     switch (event.tipo) {
       case 'ServicioAceptado':
         if (_currentRide != null) {
           _buscandoConductor = false;
-          _currentRide = RideModel.fromJson({
-            ..._currentRide!.toJson(),
-            'idconductor': event.data['idConductor'],
-            'estatus': 'En Camino',
-            'c_nombre': event.data['conductorNombre'] ?? 'Conductor',
-          });
-          _pollTimer?.cancel();
+          _currentRide = _esSnapshot(event.data)
+              ? RideModel.fromJson({..._currentRide!.raw, ...event.data})
+              : _currentRide!.copyWith({
+                  'idconductor': event.data['idConductor'] ?? event.data['idconductor'],
+                  'estatus': 'En Camino',
+                  'conductor_nombre': event.data['conductorNombre'] ?? 'Conductor',
+                });
           notifyListeners();
+          _refrescarInmediato();
         }
         break;
       case 'EstatusCambiado':
+        final estatus = event.data['estatus']?.toString();
+        if (estatus == null || estatus == 'ParadaAgregada' || estatus == 'ParadaCompletada') break;
         if (_currentRide != null) {
-          final estatus = event.data['estatus']?.toString();
-          if (estatus != null && estatus != 'ParadaAgregada' && estatus != 'ParadaCompletada') {
-            _currentRide = RideModel.fromJson({
-              ..._currentRide!.toJson(),
-              'estatus': estatus,
-            });
-            notifyListeners();
-          }
+          _currentRide = _esSnapshot(event.data)
+              ? RideModel.fromJson({..._currentRide!.raw, ...event.data})
+              : _currentRide!.copyWith({'estatus': estatus});
+          _buscandoConductor = false;
+          notifyListeners();
+          if ((_currentRide?.esFinalizado ?? false)) _pollTimer?.cancel();
         }
         break;
       case 'UbicacionConductor':
@@ -103,10 +109,7 @@ class RideProvider extends ChangeNotifier {
         // Taximetro: costo en vivo durante el viaje
         final costo = double.tryParse(event.data['costo']?.toString() ?? '');
         if (_currentRide != null && costo != null) {
-          _currentRide = RideModel.fromJson({
-            ..._currentRide!.toJson(),
-            'costoencurso': costo,
-          });
+          _currentRide = _currentRide!.copyWith({'costoencurso': costo});
           notifyListeners();
         }
         break;
@@ -118,6 +121,18 @@ class RideProvider extends ChangeNotifier {
         break;
     }
   }
+
+  bool _refrescando = false;
+
+  /// Refresca el servicio de inmediato (respaldo del WebSocket).
+  Future<void> _refrescarInmediato() async {
+    if (_refrescando) return;
+    _refrescando = true;
+    try { await _checkStatus(); } finally { _refrescando = false; }
+  }
+
+  /// Fuerza una actualizacion del servicio en curso.
+  Future<void> refrescarServicio() => _refrescarInmediato();
 
   // ─── SERVICIO ────────────────────────────────────────────────
 
