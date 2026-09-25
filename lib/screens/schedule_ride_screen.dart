@@ -25,6 +25,72 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
   TimeOfDay? _hora;
   bool _loading = false;
 
+  // Mapa de previsualizacion del recorrido
+  GoogleMapController? _mapCtrl;
+  final Set<Marker> _markers = {};
+  final Set<Polyline> _polylines = {};
+
+  void _actualizarMapa() {
+    final markers = <Marker>{};
+    if (_origenLatLng != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('origen'),
+        position: _origenLatLng!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        infoWindow: InfoWindow(title: 'Origen', snippet: _originCtrl.text),
+      ));
+    }
+    if (_destinoLatLng != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('destino'),
+        position: _destinoLatLng!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        infoWindow: InfoWindow(title: 'Destino', snippet: _destinoCtrl.text),
+      ));
+    }
+    for (var i = 0; i < _paradas.length; i++) {
+      final p = _paradas[i];
+      final lat = double.tryParse(p['lat']?.toString() ?? '');
+      final lng = double.tryParse(p['lng']?.toString() ?? '');
+      if (lat == null || lng == null) continue;
+      markers.add(Marker(
+        markerId: MarkerId('parada_$i'),
+        position: LatLng(lat, lng),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        infoWindow: InfoWindow(title: 'Parada ${i + 1}', snippet: p['direccion']?.toString() ?? ''),
+      ));
+    }
+    if (mounted) setState(() => _markers..clear()..addAll(markers));
+    _ajustarMapa();
+  }
+
+  void _ajustarMapa() {
+    if (_mapCtrl == null) return;
+    final puntos = <LatLng>[
+      if (_origenLatLng != null) _origenLatLng!,
+      if (_destinoLatLng != null) _destinoLatLng!,
+      ..._paradas.map((p) {
+        final lat = double.tryParse(p['lat']?.toString() ?? '');
+        final lng = double.tryParse(p['lng']?.toString() ?? '');
+        return (lat != null && lng != null) ? LatLng(lat, lng) : null;
+      }).whereType<LatLng>(),
+    ];
+    if (puntos.isEmpty) return;
+    if (puntos.length == 1) {
+      _mapCtrl!.animateCamera(CameraUpdate.newLatLngZoom(puntos.first, 15));
+      return;
+    }
+    final lats = puntos.map((p) => p.latitude).toList()..sort();
+    final lngs = puntos.map((p) => p.longitude).toList()..sort();
+    _mapCtrl!.animateCamera(CameraUpdate.newLatLngBounds(
+      LatLngBounds(
+        southwest: LatLng(lats.first, lngs.first),
+        northeast: LatLng(lats.last, lngs.last),
+      ),
+      70,
+    ));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +107,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
         _origenLatLng = LatLng(pos.latitude, pos.longitude);
         _originCtrl.text = 'Mi ubicacion actual';
       });
+      _actualizarMapa();
     } catch (_) {}
   }
 
@@ -59,6 +126,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
         _destinoCtrl.text = res['address']?.toString() ?? '';
       }
     });
+    _actualizarMapa();
   }
 
   Future<void> _agregarParada() async {
@@ -74,6 +142,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
         'referencia': 'Parada ${_paradas.length + 1}',
       });
     });
+    _actualizarMapa();
   }
 
   Future<void> _elegirFecha() async {
@@ -184,6 +253,58 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            Container(
+              height: 210,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: VaiaColors.border),
+              ),
+              child: Stack(
+                children: [
+                  GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: _origenLatLng ?? const LatLng(26.0923, -98.2789),
+                      zoom: 13,
+                    ),
+                    onMapCreated: (c) { _mapCtrl = c; _ajustarMapa(); },
+                    markers: _markers,
+                    polylines: _polylines,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: false,
+                    zoomControlsEnabled: false,
+                    compassEnabled: false,
+                    mapToolbarEnabled: false,
+                  ),
+                  if (_destinoLatLng == null)
+                    Positioned(
+                      left: 10, right: 10, bottom: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: VaiaShadows.card,
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.map_outlined, size: 16, color: VaiaColors.primary),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text('Selecciona el destino para ver el recorrido en el mapa',
+                                  style: TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text('El mapa muestra el origen, el destino y las paradas que agregues.',
+                style: TextStyle(fontSize: 11.5, color: VaiaColors.textMuted)),
             const SizedBox(height: 20),
             VaiaTextField(
               controller: _originCtrl,

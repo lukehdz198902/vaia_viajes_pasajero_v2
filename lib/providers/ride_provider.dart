@@ -34,6 +34,7 @@ class RideProvider extends ChangeNotifier {
   int _pollCount = 0;
   bool _useSimulation = false;
   bool _conectadoWs = false;
+  String? _ultimoMotivoCancelacion;
   double? _conductorLat;
   double? _conductorLng;
   StreamSubscription? _subEventos;
@@ -49,6 +50,7 @@ class RideProvider extends ChangeNotifier {
   String? get error => _error;
   bool get useSimulation => _useSimulation;
   bool get conectadoWs => _conectadoWs;
+  String? get ultimoMotivoCancelacion => _ultimoMotivoCancelacion;
   double? get conductorLat => _conductorLat;
   double? get conductorLng => _conductorLng;
 
@@ -114,6 +116,7 @@ class RideProvider extends ChangeNotifier {
         }
         break;
       case 'ServicioCancelado':
+        _ultimoMotivoCancelacion = event.data['motivo']?.toString() ?? event.data['canceladoPor']?.toString();
         _currentRide = null;
         _buscandoConductor = false;
         _pollTimer?.cancel();
@@ -151,6 +154,7 @@ class RideProvider extends ChangeNotifier {
   }) async {
     _loading = true;
     _error = null;
+    _ultimoMotivoCancelacion = null;
     notifyListeners();
     try {
       Logger.i('Ride', 'solicitarServicio: origen=$dirOrigen destino=$dirDestino paradas=${paradas.length}');

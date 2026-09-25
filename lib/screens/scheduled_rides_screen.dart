@@ -49,11 +49,10 @@ class _ScheduledRidesScreenState extends State<ScheduledRidesScreen> {
                     itemBuilder: (ctx, i) => _card(ride.programados[i]),
                   ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         backgroundColor: VaiaColors.primary,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.schedule_rounded),
-        label: const Text('Programar'),
+        tooltip: 'Programar viaje',
         onPressed: () async {
           final creado = await Navigator.of(context).push<bool>(
             MaterialPageRoute(builder: (_) => const ScheduleRideScreen()),

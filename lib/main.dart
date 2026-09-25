@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'config/theme.dart';
 import 'config/routes.dart';
@@ -15,6 +17,9 @@ import 'providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Inicializa los datos de localizacion en espanol (evita LocaleDataException
+  // al usar DateFormat('...', 'es') y muestra los selectores en espanol).
+  await initializeDateFormatting('es', null);
   await NotificationService.inicializar();
   runApp(const VaiaViajesApp());
 }
@@ -60,6 +65,13 @@ class VaiaViajesApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProv.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            locale: const Locale('es'),
+            supportedLocales: const [Locale('es'), Locale('en')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
             initialRoute: AppRoutes.splash,
             routes: AppRoutes.routes,
             onGenerateRoute: AppRoutes.onGenerateRoute,

@@ -234,8 +234,8 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: ListView(
+            shrinkWrap: true,
             children: [
               Container(
                 width: 40,

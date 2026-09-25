@@ -392,6 +392,20 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     }
     setState(() => _isLoading = true);
     final ride = context.read<RideProvider>();
+
+    // Antes de solicitar, verifica que existan conductores conectados en el
+    // rango configurado. Si no hay, no se permite continuar.
+    await ride.buscarConductores(
+      lat: _originLatLng!.latitude.toString(),
+      lng: _originLatLng!.longitude.toString(),
+    );
+    if (!mounted) return;
+    if (ride.conductoresDisponibles.isEmpty) {
+      setState(() => _isLoading = false);
+      await _sinConductores();
+      return;
+    }
+
     final success = await ride.solicitarServicio(
       dirOrigen: _originController.text,
       latOrigen: _originLatLng!.latitude.toString(),
@@ -420,6 +434,24 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         SnackBar(content: Text(ride.error!), backgroundColor: AppTheme.danger),
       );
     }
+  }
+
+  /// Aviso cuando no hay conductores conectados en la zona del pasajero.
+  Future<void> _sinConductores() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.no_transfer_rounded, color: AppTheme.danger, size: 40),
+        title: const Text('Sin conductores cercanos'),
+        content: const Text(
+            'No hay conductores conectados en tu zona en este momento, por lo que no es posible brindar el servicio. '
+            'Intenta de nuevo en unos minutos o muevete a otra ubicacion.'),
+        actions: [
+          ElevatedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
+        ],
+      ),
+    );
   }
 
   String _formatDuration(int seconds) {

@@ -59,7 +59,41 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   }
 
   void _onRideChanged() {
-    if (mounted) _actualizarMapa();
+    if (!mounted) return;
+    final rideProv = context.read<RideProvider>();
+    if (rideProv.currentRide == null && !_yaNavegoFin) {
+      final motivo = rideProv.ultimoMotivoCancelacion;
+      if (motivo != null && motivo.trim().isNotEmpty) {
+        _yaNavegoFin = true;
+        _mostrarServicioNoDisponible(motivo);
+        return;
+      }
+    }
+    _actualizarMapa();
+  }
+
+  /// Avisa al pasajero cuando el sistema cancela el servicio (por ejemplo,
+  /// porque no hubo conductor disponible a la redonda) y lo regresa al inicio.
+  Future<void> _mostrarServicioNoDisponible(String motivo) async {
+    final sinConductor = motivo.toLowerCase().contains('conductor');
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+        icon: Icon(sinConductor ? Icons.no_transfer_rounded : Icons.cancel_outlined, color: VaiaColors.danger, size: 40),
+        title: Text(sinConductor ? 'Sin servicio disponible' : 'Servicio cancelado'),
+        content: Text(sinConductor
+            ? 'No se pudo brindar el servicio porque no hay conductores disponibles a la redonda. '
+                'Intenta de nuevo en unos minutos o muevete a otra ubicacion.'
+            : 'El servicio fue cancelado: $motivo'),
+        actions: [
+          ElevatedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(AppRoutes.home);
   }
 
   @override
