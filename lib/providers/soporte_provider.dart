@@ -62,6 +62,24 @@ class SoporteProvider extends ChangeNotifier {
     });
   }
 
+  /// Obtiene (o crea) el canal unico de soporte del pasajero. No requiere un
+  /// servicio activo: el usuario siempre puede abrir soporte en linea.
+  Future<int?> canalActivo() async {
+    try {
+      final res = await _api.getRoot('Soporte', 'CanalActivo', params: {
+        'tipoSolicitante': 'pasajero',
+        'idPasajero': _auth.userId.toString(),
+      });
+      if (res.success && res.firstOrNull() is Map) {
+        final id = _toInt((res.firstOrNull() as Map)['id']);
+        if (id > 0) return id;
+      }
+    } catch (e) {
+      Logger.e('Soporte', 'canalActivo: $e');
+    }
+    return null;
+  }
+
   /// Crea una solicitud de soporte referenciando un servicio activo.
   Future<int?> crearSolicitud({
     required int idServicio,

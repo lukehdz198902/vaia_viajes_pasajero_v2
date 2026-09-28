@@ -252,21 +252,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   () => Navigator.pushNamed(context, '/favorites')),
               _menuTile(ctx, Icons.history_rounded, 'Historial',
                   () => Navigator.pushNamed(context, '/history')),
+              _menuTile(ctx, Icons.notifications_rounded, 'Notificaciones',
+                  () => Navigator.pushNamed(context, '/notifications')),
               _menuTile(ctx, Icons.confirmation_number_outlined, 'Promociones',
                   () => Navigator.pushNamed(context, '/promotions')),
               _menuTile(ctx, Icons.schedule_rounded, 'Viajes programados',
                   () => Navigator.pushNamed(context, '/scheduled-rides')),
               _menuTile(ctx, Icons.support_agent_rounded, 'Soporte en linea', () {
                 final ride = context.read<RideProvider>();
-                if (ride.currentRide != null) {
-                  Navigator.pushNamed(context, '/support-chat',
-                      arguments: {'idServicio': ride.currentRide!.id});
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('El soporte esta disponible durante un servicio activo'),
-                    backgroundColor: VaiaColors.warning,
-                  ));
-                }
+                // El soporte esta disponible siempre (con o sin servicio).
+                Navigator.pushNamed(context, '/support-chat',
+                    arguments: {'idServicio': ride.currentRide?.id});
               }),
               _menuTile(ctx, Icons.settings_outlined, 'Configuracion',
                   () => Navigator.pushNamed(context, '/settings')),

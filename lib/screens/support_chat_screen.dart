@@ -8,11 +8,12 @@ import '../providers/soporte_provider.dart';
 import '../widgets/vaia_widgets.dart';
 
 class SupportChatScreen extends StatefulWidget {
-  /// Servicio al que se refiere la solicitud de soporte.
-  final int idServicio;
+  /// Servicio al que se refiere la solicitud de soporte (opcional: el soporte
+  /// en linea esta disponible siempre, con o sin servicio activo).
+  final int? idServicio;
   final int? idSolicitudExistente;
 
-  const SupportChatScreen({super.key, required this.idServicio, this.idSolicitudExistente});
+  const SupportChatScreen({super.key, this.idServicio, this.idSolicitudExistente});
 
   @override
   State<SupportChatScreen> createState() => _SupportChatScreenState();
@@ -37,19 +38,15 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       setState(() => _inicializando = false);
       return;
     }
-    // Crear nueva solicitud
-    final id = await soporte.crearSolicitud(
-      idServicio: widget.idServicio,
-      asunto: 'Soporte para servicio #${widget.idServicio}',
-      descripcion: 'El usuario ha iniciado una conversacion con soporte',
-    );
+    // Canal unico de soporte (se crea si no existe; no requiere servicio).
+    final id = await soporte.canalActivo();
     if (!mounted) return;
     if (id != null && id > 0) {
       await soporte.cargarSolicitud(id);
       setState(() => _inicializando = false);
     } else {
       setState(() {
-        _error = soporte.error ?? 'No se pudo crear la solicitud de soporte';
+        _error = soporte.error ?? 'No se pudo abrir el canal de soporte';
         _inicializando = false;
       });
     }
@@ -99,7 +96,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Soporte en linea', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            Text('Servicio #${widget.idServicio}',
+            Text(widget.idServicio != null ? 'Servicio #${widget.idServicio}' : 'Atencion al cliente',
                 style: const TextStyle(fontSize: 11, color: VaiaColors.textMuted, fontWeight: FontWeight.w500)),
           ],
         ),

@@ -19,6 +19,7 @@ import '../screens/schedule_ride_screen.dart';
 import '../screens/support_chat_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/permisos_screen.dart';
+import '../screens/notifications_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -42,6 +43,7 @@ class AppRoutes {
   static const String supportChat = '/support-chat';
   static const String onboarding = '/onboarding';
   static const String permisos = '/permisos';
+  static const String notifications = '/notifications';
 
   static Map<String, WidgetBuilder> get routes {
     return {
@@ -67,6 +69,8 @@ class AppRoutes {
     switch (settings.name) {
       case serviceStatus:
         return MaterialPageRoute(builder: (_) => const ServiceStatusScreen());
+      case notifications:
+        return MaterialPageRoute(builder: (_) => const NotificationsScreen());
       case rating:
         return MaterialPageRoute(builder: (_) => const RatingScreen());
       case tripDetail:
@@ -87,7 +91,7 @@ class AppRoutes {
       case supportChat:
         return MaterialPageRoute(
           builder: (_) => SupportChatScreen(
-            idServicio: args['idServicio'] ?? 0,
+            idServicio: args['idServicio'],
             idSolicitudExistente: args['idSolicitudExistente'],
           ),
         );

@@ -170,6 +170,19 @@ class ApiService {
         if (notas != null) 'notas': notas,
       });
 
+  // ─── NOTIFICACIONES ──────────────────────────────────────────
+  Future<ApiResponse> notificaciones(int idPasajero) =>
+      get('/Notificaciones', params: {'idPasajero': idPasajero.toString()});
+
+  Future<ApiResponse> notificacionesNoLeidas(int idPasajero) =>
+      get('/NotificacionesNoLeidas', params: {'idPasajero': idPasajero.toString()});
+
+  Future<ApiResponse> marcarNotificacionLeida(int idPasajero, int id) =>
+      post('/MarcarNotificacionLeida', body: {'idPasajero': idPasajero, 'id': id});
+
+  Future<ApiResponse> marcarNotificacionesLeidas(int idPasajero) =>
+      post('/MarcarNotificacionesLeidas', body: {'idPasajero': idPasajero});
+
   Future<ApiResponse> listarParadas(int idServicio) =>
       getRoot('Servicio', 'ListarParadas', params: {'idservicio': idServicio.toString()});
 
