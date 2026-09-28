@@ -134,16 +134,16 @@ class RideModel {
     ConductorModel? cond;
     if (json['conductor'] != null) {
       cond = ConductorModel.fromJson(Map<String, dynamic>.from(json['conductor'] as Map));
-    } else if (json['c_nombre'] != null || json['conductor_nombre'] != null) {
-      // El snapshot y los SP devuelven columnas "conductor_*"; los eventos "c_*".
+    } else if (json['c_nombre'] != null || json['conductor_nombre'] != null || json['cond_nombre'] != null) {
+      // El snapshot y los SP devuelven columnas "conductor_*"/"cond_*"; eventos "c_*".
       cond = ConductorModel(
         id: _toInt(json['idconductor']),
-        nombre: (json['conductor_nombre'] ?? json['c_nombre'] ?? '').toString(),
-        appaterno: (json['conductor_appaterno'] ?? json['c_appaterno'] ?? '').toString(),
-        apmaterno: (json['conductor_apmaterno'] ?? json['c_apmaterno'] ?? '').toString(),
+        nombre: (json['conductor_nombre'] ?? json['c_nombre'] ?? json['cond_nombre'] ?? '').toString(),
+        appaterno: (json['conductor_appaterno'] ?? json['c_appaterno'] ?? json['cond_appaterno'] ?? '').toString(),
+        apmaterno: (json['conductor_apmaterno'] ?? json['c_apmaterno'] ?? json['cond_apmaterno'] ?? '').toString(),
         telefono: (json['conductor_telefono'] ?? json['c_tel'])?.toString(),
         correo: (json['conductor_email'] ?? json['c_email'])?.toString(),
-        fotoperfil: (json['conductor_foto'] ?? json['c_foto'] ?? json['fotoperfil'])?.toString(),
+        fotoperfil: (json['conductor_foto'] ?? json['c_foto'] ?? json['cond_foto'] ?? json['fotoperfil'])?.toString(),
         unidad: (json['unidad'])?.toString(),
         placas: (json['placas'])?.toString(),
         colorUnidad: (json['colorhex'] ?? json['colornombre'] ?? json['colorunidad'])?.toString(),

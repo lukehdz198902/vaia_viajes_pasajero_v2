@@ -401,19 +401,34 @@ class RideProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> cargarHistorial({int pagina = 1, int tamano = 20}) async {
+  Map<String, dynamic>? _resumenHistorial;
+  Map<String, dynamic>? get resumenHistorial => _resumenHistorial;
+
+  Future<void> cargarHistorial({int pagina = 1, int tamano = 20, DateTime? fi, DateTime? ff}) async {
     _loading = true;
     notifyListeners();
     try {
-      final res = await _api.get('/HistorialViajes', params: {
+      final params = {
         'idPasajero': _auth.userId.toString(),
         'pagina': pagina.toString(),
         'tamano': tamano.toString(),
-      });
+        if (fi != null) 'fi': fi.toIso8601String(),
+        if (ff != null) 'ff': ff.toIso8601String(),
+      };
+      final res = await _api.get('/HistorialViajes', params: params);
+      _historial = [];
       if (res.success && res.isList) {
         _historial = res.list
             .map((e) => RideModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
+      }
+      final rr = await _api.get('/HistorialResumen', params: {
+        'idPasajero': _auth.userId.toString(),
+        if (fi != null) 'fi': fi.toIso8601String(),
+        if (ff != null) 'ff': ff.toIso8601String(),
+      });
+      if (rr.success && rr.firstOrNull() is Map) {
+        _resumenHistorial = Map<String, dynamic>.from(rr.firstOrNull() as Map);
       }
     } catch (_) {}
     _loading = false;
