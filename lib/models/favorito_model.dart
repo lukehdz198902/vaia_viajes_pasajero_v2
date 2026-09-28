@@ -5,6 +5,7 @@ class FavoritoModel {
   final String? direccion;
   final String lat;
   final String lng;
+  final String? categoria;
   final bool activo;
 
   FavoritoModel({
@@ -14,6 +15,7 @@ class FavoritoModel {
     this.direccion,
     required this.lat,
     required this.lng,
+    this.categoria,
     this.activo = true,
   });
 
@@ -23,8 +25,9 @@ class FavoritoModel {
       idPasajero: json['idpasajero'] ?? json['Idpasajero'] ?? 0,
       nombre: json['favoritonombre'] ?? json['Favoritonombre'] ?? '',
       direccion: json['direccionfavorito'] ?? json['Direccionfavorito'],
-      lat: json['lat'] ?? json['Lat'] ?? '',
-      lng: json['lng'] ?? json['Lng'] ?? '',
+      lat: json['lat']?.toString() ?? json['Lat']?.toString() ?? '',
+      lng: json['lng']?.toString() ?? json['Lng']?.toString() ?? '',
+      categoria: json['categoria']?.toString() ?? json['Categoria']?.toString(),
       activo: json['activo'] != false,
     );
   }

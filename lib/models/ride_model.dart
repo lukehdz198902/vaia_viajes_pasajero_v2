@@ -23,6 +23,7 @@ class RideModel {
   final double? montoDescuento;
   final String? tipoviaje;
   final String? tipoPago;
+  final String? metodoPago;
   final String? motivocancelacion;
   final String? canceladopor;
   final String? fechacancelacion;
@@ -71,6 +72,7 @@ class RideModel {
     this.montoDescuento,
     this.tipoviaje,
     this.tipoPago,
+    this.metodoPago,
     this.motivocancelacion,
     this.canceladopor,
     this.fechacancelacion,
@@ -152,8 +154,8 @@ class RideModel {
         modelo: (json['modelo'])?.toString(),
         numeroAsientos: _toIntOrNull(json['numeroasientos']),
         calificacion: _toDoubleOrNull(json['conductor_calificacion'] ??
-            json['c_calificacionpromedio'] ?? json['calificacionpromedio']),
-        totalViajes: _toIntOrNull(json['conductor_totalviajes'] ?? json['c_totalviajes'] ?? json['totalviajes']),
+            json['c_calificacionpromedio'] ?? json['calificacionpromedio'] ?? json['c_calif']),
+        totalViajes: _toIntOrNull(json['conductor_totalviajes'] ?? json['c_totalviajes'] ?? json['totalviajes'] ?? json['c_viajes']),
         lat: (json['conductor_lat'])?.toString(),
         lng: (json['conductor_lng'])?.toString(),
       );
@@ -183,6 +185,7 @@ class RideModel {
       montoDescuento: _toDoubleOrNull(json['montodescuento'] ?? json['Montodescuento']),
       tipoviaje: (json['tipoviaje'] ?? json['Tipoviaje'])?.toString(),
       tipoPago: (json['tipopago'] ?? json['Tipopago'])?.toString(),
+      metodoPago: (json['metodopago'] ?? json['Metodopago'])?.toString(),
       motivocancelacion: (json['motivocancelacion'] ?? json['Motivocancelacion'])?.toString(),
       canceladopor: (json['canceladopor'] ?? json['Canceladopor'])?.toString(),
       fechacancelacion: (json['fechacancelacion'] ?? json['Fechacancelacion'])?.toString(),

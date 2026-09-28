@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../config/theme.dart';
 import 'home_screen.dart';
+import 'favorites_screen.dart';
 
 class RatingScreen extends StatefulWidget {
   const RatingScreen({super.key});
@@ -143,6 +144,54 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                     ]),
                   ]),
                 ),
+                const SizedBox(height: 20),
+
+                // Recomendacion: guardar el destino como favorito.
+                if ((ride?.direccionDestino ?? '').isNotEmpty)
+                  InkWell(
+                    onTap: () async {
+                      final ok = await mostrarAgregarFavorito(
+                        context,
+                        nombre: 'Mi destino',
+                        direccion: ride!.direccionDestino,
+                        lat: ride.latDestino,
+                        lng: ride.lngDestino,
+                      );
+                      if (ok && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Guardado en favoritos'), backgroundColor: VaiaColors.success),
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(VaiaRadius.md),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: VaiaColors.primaryGhost,
+                        borderRadius: BorderRadius.circular(VaiaRadius.md),
+                        border: Border.all(color: VaiaColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.bookmark_add_rounded, color: VaiaColors.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Guardar este destino en favoritos',
+                                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary)),
+                                Text(ride!.direccionDestino,
+                                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, color: VaiaColors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded, color: VaiaColors.primary),
+                        ],
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 26),
 
                 const Text('Como estuvo tu viaje?',
