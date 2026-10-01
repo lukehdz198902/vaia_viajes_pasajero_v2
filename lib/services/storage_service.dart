@@ -13,6 +13,8 @@ class StorageService {
   static const _onboardingKey = 'pasajero_onboarding';
   static const _terminosKey = 'pasajero_terminos';
   static const _biometriaKey = 'pasajero_biometria';
+  static const _pinHabilitadoKey = 'pasajero_pin_habilitado';
+  static const _pinKey = 'pasajero_pin';
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
@@ -87,6 +89,29 @@ class StorageService {
   Future<bool> getBiometriaHabilitada() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_biometriaKey) ?? false;
+  }
+
+  // ─── PIN DE SEGURIDAD ────────────────────────────────────────
+
+  Future<void> setPinHabilitado(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_pinHabilitadoKey, v);
+  }
+
+  Future<bool> getPinHabilitado() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_pinHabilitadoKey) ?? false;
+  }
+
+  Future<void> setPin(String pin) => _secure.write(key: _pinKey, value: pin);
+
+  Future<String?> getPin() => _secure.read(key: _pinKey);
+
+  Future<bool> verificarPin(String pin) async => (await getPin()) == pin;
+
+  Future<void> removePin() async {
+    await _secure.delete(key: _pinKey);
+    await setPinHabilitado(false);
   }
 
   Future<void> clearAll() async {

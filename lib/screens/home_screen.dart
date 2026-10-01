@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
@@ -11,6 +12,7 @@ import '../../models/conductor_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
+import '../../widgets/location_gate.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import 'service_request_screen.dart';
@@ -224,57 +226,62 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  static const _urlAppConductor = 'https://play.google.com/store/apps/details?id=prozoft.com.vaiaconductor&hl=es_MX';
+
   void _showMenuSheet() {
+    final auth = context.read<AuthProvider>();
+    final user = auth.user;
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.55,
+        maxChildSize: 0.96,
+        expand: false,
+        builder: (ctx2, scrollCtrl) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
           child: ListView(
-            shrinkWrap: true,
+            controller: scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
             children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).dividerColor,
-                  borderRadius: BorderRadius.circular(2),
+              Center(
+                child: Container(
+                  width: 44, height: 5,
+                  decoration: BoxDecoration(color: VaiaColors.border, borderRadius: BorderRadius.circular(3)),
                 ),
               ),
-              const SizedBox(height: 12),
-              _menuTile(ctx, Icons.person_outline_rounded, 'Mi Perfil',
-                  () => Navigator.pushNamed(context, '/profile')),
-              _menuTile(ctx, Icons.star_outline_rounded, 'Favoritos',
-                  () => Navigator.pushNamed(context, '/favorites')),
-              _menuTile(ctx, Icons.history_rounded, 'Historial',
-                  () => Navigator.pushNamed(context, '/history')),
-              _menuTile(ctx, Icons.notifications_rounded, 'Notificaciones',
-                  () => Navigator.pushNamed(context, '/notifications')),
-              _menuTile(ctx, Icons.confirmation_number_outlined, 'Promociones',
-                  () => Navigator.pushNamed(context, '/promotions')),
-              _menuTile(ctx, Icons.schedule_rounded, 'Viajes programados',
-                  () => Navigator.pushNamed(context, '/scheduled-rides')),
-              _menuTile(ctx, Icons.support_agent_rounded, 'Soporte en linea', () {
-                final ride = context.read<RideProvider>();
-                // El soporte esta disponible siempre (con o sin servicio).
-                Navigator.pushNamed(context, '/support-chat',
-                    arguments: {'idServicio': ride.currentRide?.id});
-              }),
-              _menuTile(ctx, Icons.settings_outlined, 'Configuracion',
-                  () => Navigator.pushNamed(context, '/settings')),
-              const Divider(height: 1),
-              _menuTile(ctx, Icons.logout_rounded, 'Cerrar sesion', () {
-                context.read<AuthProvider>().logout();
-                Navigator.of(ctx).pop();
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }),
+              const SizedBox(height: 18),
+              _menuHeader(user),
+              const SizedBox(height: 20),
+              _menuGrid(ctx),
+              const SizedBox(height: 18),
+              _unirseConductor(ctx),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    context.read<AuthProvider>().logout();
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: VaiaColors.danger,
+                    side: const BorderSide(color: VaiaColors.danger),
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  label: const Text('Cerrar sesion'),
+                ),
+              ),
             ],
           ),
         ),
@@ -282,17 +289,134 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _menuTile(BuildContext ctx, IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, color: VaiaColors.textSecondary),
-      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-      trailing: const Icon(Icons.chevron_right_rounded, color: VaiaColors.textMuted),
-      onTap: () {
-        Navigator.of(ctx).pop();
-        onTap();
-      },
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.sm)),
+  Widget _menuHeader(dynamic user) {
+    final nombre = (user?.nombre ?? '').toString();
+    final foto = user?.fotoperfil as String?;
+    final contacto = (user?.correo ?? '').toString().isNotEmpty ? user.correo.toString() : (user?.telefono ?? '').toString();
+    final iniciales = nombre.trim().isEmpty
+        ? '?'
+        : nombre.trim().split(RegExp(r'\s+')).take(2).map((p) => p[0]).join().toUpperCase();
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: VaiaColors.primaryGradient),
+          child: CircleAvatar(
+            radius: 30,
+            backgroundColor: VaiaColors.surface,
+            backgroundImage: (foto != null && foto.isNotEmpty) ? NetworkImage(foto) : null,
+            child: (foto == null || foto.isEmpty)
+                ? Text(iniciales, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: VaiaColors.primary))
+                : null,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Hola, ${nombre.isEmpty ? 'viajero' : nombre}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(contacto, style: const TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close_rounded, color: VaiaColors.textMuted),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ],
     );
+  }
+
+  Widget _menuGrid(BuildContext ctx) {
+    final items = <(IconData, String, Color, VoidCallback)>[
+      (Icons.person_rounded, 'Mi perfil', VaiaColors.primary, () => Navigator.pushNamed(context, '/profile')),
+      (Icons.star_rounded, 'Favoritos', VaiaColors.accent, () => Navigator.pushNamed(context, '/favorites')),
+      (Icons.history_rounded, 'Historial', VaiaColors.info, () => Navigator.pushNamed(context, '/history')),
+      (Icons.notifications_rounded, 'Notificaciones', VaiaColors.info, () => Navigator.pushNamed(context, '/notifications')),
+      (Icons.local_offer_rounded, 'Promociones', VaiaColors.danger, () => Navigator.pushNamed(context, '/promotions')),
+      (Icons.event_available_rounded, 'Programados', VaiaColors.success, () => Navigator.pushNamed(context, '/scheduled-rides')),
+      (Icons.support_agent_rounded, 'Soporte', VaiaColors.primaryDark, () {
+        final ride = context.read<RideProvider>();
+        Navigator.pushNamed(context, '/support-chat', arguments: {'idServicio': ride.currentRide?.id});
+      }),
+      (Icons.settings_rounded, 'Ajustes', VaiaColors.textSecondary, () => Navigator.pushNamed(context, '/settings')),
+    ];
+    return GridView.count(
+      crossAxisCount: 4,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 14,
+      crossAxisSpacing: 10,
+      childAspectRatio: 0.78,
+      children: items.map((it) {
+        final (icon, label, color, onTap) = it;
+        return InkWell(
+          borderRadius: BorderRadius.circular(VaiaRadius.md),
+          onTap: () { Navigator.of(ctx).pop(); onTap(); },
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(height: 6),
+              Text(label, textAlign: TextAlign.center, maxLines: 2,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary)),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _unirseConductor(BuildContext ctx) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: VaiaColors.heroGradient,
+        borderRadius: BorderRadius.circular(VaiaRadius.lg),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.directions_car_filled_rounded, color: Colors.white, size: 34),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tienes un auto?', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                SizedBox(height: 2),
+                Text('Unete como conductor y genera ingresos con Vaia.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.3)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => _abrirAppConductor(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: VaiaColors.primaryDark, padding: const EdgeInsets.symmetric(horizontal: 14)),
+            child: const Text('Unirme'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _abrirAppConductor(BuildContext ctx) async {
+    final uri = Uri.parse(_urlAppConductor);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir la tienda de aplicaciones'), backgroundColor: VaiaColors.danger),
+      );
+    }
   }
 
   @override
@@ -301,7 +425,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final rideProv = context.watch<RideProvider>();
     final themeProv = context.watch<ThemeProvider>();
 
-    return Scaffold(
+    return LocationGate(
+      child: Scaffold(
       body: Stack(
         children: [
           _buildMapArea(),
@@ -423,6 +548,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

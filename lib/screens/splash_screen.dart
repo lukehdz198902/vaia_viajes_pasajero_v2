@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/vaia_widgets.dart';
 import '../../services/logger.dart';
 import '../../services/storage_service.dart';
 import '../../services/biometric_service.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
 import 'onboarding_screen.dart';
+import 'pin_screens.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -42,6 +42,15 @@ class _SplashScreenState extends State<SplashScreen>
       _navigated = true;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+      return;
+    }
+    // Seguridad por PIN: si esta habilitado, se exige al abrir la app.
+    if (await storage.getPinHabilitado()) {
+      if (!mounted || _navigated) return;
+      _navigated = true;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const PinLockScreen()),
       );
       return;
     }
@@ -85,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: VaiaColors.surface,
+      backgroundColor: const Color(0xFF0B0F14),
       body: Stack(
         children: [
           _BubblesBackground(controller: _bubbleCtrl),
@@ -94,23 +103,14 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(28),
-                    decoration: BoxDecoration(
-                      color: VaiaColors.primaryGhost,
-                      borderRadius: BorderRadius.circular(32),
-                      border: Border.all(color: VaiaColors.primary.withOpacity(0.20), width: 1.5),
-                      boxShadow: VaiaShadows.glow,
-                    ),
-                    child: const VaiaLogo(size: 80),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
+                  Image.asset('assets/images/logo.png', width: 180, height: 180),
+                  const SizedBox(height: 20),
+                  const Text(
                     'Vaia Viajes',
                     style: TextStyle(
-                      fontSize: 36,
+                      fontSize: 34,
                       fontWeight: FontWeight.w800,
-                      color: VaiaColors.textPrimary,
+                      color: Colors.white,
                       letterSpacing: -0.5,
                     ),
                   ),
@@ -120,17 +120,17 @@ class _SplashScreenState extends State<SplashScreen>
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
-                      color: VaiaColors.textSecondary,
+                      color: Colors.white.withValues(alpha: 0.7),
                       letterSpacing: 0.3,
                     ),
                   ),
-                  const SizedBox(height: 48),
-                  SizedBox(
+                  const SizedBox(height: 44),
+                  const SizedBox(
                     width: 28,
                     height: 28,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      color: VaiaColors.primary,
+                      color: VaiaColors.primaryLight,
                     ),
                   ),
                 ],

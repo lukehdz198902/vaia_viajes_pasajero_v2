@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../services/biometric_service.dart';
 import '../../services/storage_service.dart';
 import 'login_screen.dart';
+import 'pin_screens.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -29,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _codigoEnviado = false;
   bool _isLoadingPhone = false;
   bool _biometria = false;
+  bool _pinHabilitado = false;
 
   @override
   void initState() {
@@ -36,6 +38,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     StorageService().getBiometriaHabilitada().then((v) {
       if (mounted) setState(() => _biometria = v);
     });
+    StorageService().getPinHabilitado().then((v) {
+      if (mounted) setState(() => _pinHabilitado = v);
+    });
+  }
+
+  /// Activa, cambia o desactiva el PIN de seguridad.
+  Future<void> _configurarPin(bool v) async {
+    final storage = StorageService();
+    if (v) {
+      final ok = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const PinSetupScreen()),
+      );
+      if (ok == true && mounted) {
+        setState(() => _pinHabilitado = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PIN de seguridad activado'), backgroundColor: AppTheme.success),
+        );
+      }
+    } else {
+      await storage.removePin();
+      if (mounted) setState(() => _pinHabilitado = false);
+    }
   }
 
   /// Activa o desactiva la seguridad biometrica.
@@ -318,12 +342,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _sectionHeader('Seguridad'),
             const SizedBox(height: 8),
             Card(
-              child: SwitchListTile(
-                title: const Text('Seguridad biometrica', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(_biometria ? 'Activada' : 'Desactivada', style: const TextStyle(color: AppTheme.textMedium)),
-                secondary: const Icon(Icons.fingerprint_rounded),
-                value: _biometria,
-                onChanged: _cambiarBiometria,
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: const Text('Seguridad biometrica', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(_biometria ? 'Activada' : 'Desactivada', style: const TextStyle(color: AppTheme.textMedium)),
+                    secondary: const Icon(Icons.fingerprint_rounded),
+                    value: _biometria,
+                    onChanged: _cambiarBiometria,
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    title: const Text('PIN de seguridad', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(_pinHabilitado ? 'Activado (4 digitos)' : 'Desactivado', style: const TextStyle(color: AppTheme.textMedium)),
+                    secondary: const Icon(Icons.pin_rounded),
+                    value: _pinHabilitado,
+                    onChanged: _configurarPin,
+                  ),
+                  if (_pinHabilitado)
+                    ListTile(
+                      leading: const SizedBox(width: 40, child: Icon(Icons.password_rounded, color: AppTheme.primary)),
+                      title: const Text('Cambiar PIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                      trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textMuted),
+                      onTap: () => _configurarPin(true),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
