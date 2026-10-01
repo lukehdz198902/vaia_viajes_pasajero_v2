@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback, rootBundle;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, HapticFeedback;
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +11,7 @@ import '../../config/routes.dart';
 import '../../models/ride_model.dart';
 import '../../services/api_service.dart';
 import '../../services/directions_service.dart';
+import '../../services/marker_icons.dart';
 import '../../widgets/status_timeline.dart';
 import 'rating_screen.dart';
 import 'chat_screen.dart';
@@ -28,13 +29,17 @@ class ServiceStatusScreen extends StatefulWidget {
   State<ServiceStatusScreen> createState() => _ServiceStatusScreenState();
 }
 
-class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
+class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTickerProviderStateMixin {
   GoogleMapController? _mapCtrl;
   final Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
-  BitmapDescriptor? _carIcon;
-  LatLng? _ultimaPosVehiculo;
-  double _bearingVehiculo = 0;
+  late final AnimationController _carAnim;
+  LatLng? _carPos;
+  double _carBearing = 0;
+  LatLng? _carFrom;
+  LatLng? _carTo;
+  double _carBearingFrom = 0;
+  double _carBearingTo = 0;
   bool _trazando = false;
   String _claveTrazo = '';
   bool _yaNavegoFin = false;
@@ -45,7 +50,9 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   @override
   void initState() {
     super.initState();
-    _cargarIconoCarrito();
+    _carAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+    _carAnim.addListener(_onCarAnim);
+    MarkerIcons.cargar();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _rideRef = context.read<RideProvider>();
       _rideRef!.addListener(_onRideChanged);
@@ -99,15 +106,45 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   @override
   void dispose() {
     _rideRef?.removeListener(_onRideChanged);
+    _carAnim.dispose();
     super.dispose();
   }
 
-  Future<void> _cargarIconoCarrito() async {
-    try {
-      final data = await rootBundle.load('assets/images/car.png');
-      final bd = BitmapDescriptor.fromBytes(data.buffer.asUint8List());
-      if (mounted) setState(() => _carIcon = bd);
-    } catch (_) {}
+  void _onCarAnim() {
+    if (_carFrom == null || _carTo == null) return;
+    final t = Curves.easeInOut.transform(_carAnim.value);
+    _carPos = LatLng(
+      _carFrom!.latitude + (_carTo!.latitude - _carFrom!.latitude) * t,
+      _carFrom!.longitude + (_carTo!.longitude - _carFrom!.longitude) * t,
+    );
+    _carBearing = _carBearingFrom + (_carBearingTo - _carBearingFrom) * t;
+    _refrescarVehiculo();
+  }
+
+  /// Rotacion por el camino mas corto (evita giros de 359 grados).
+  double _bearingCorto(double desde, double hasta) {
+    var diff = (hasta - desde) % 360;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+    return desde + diff;
+  }
+
+  Marker _marcadorVehiculo(LatLng pos, double bearing) => Marker(
+        markerId: const MarkerId('vehicle'),
+        position: pos,
+        rotation: bearing,
+        flat: true,
+        anchor: const Offset(0.5, 0.5),
+        icon: MarkerIcons.car ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        infoWindow: const InfoWindow(title: 'Tu conductor'),
+      );
+
+  void _refrescarVehiculo() {
+    if (!mounted || _carPos == null) return;
+    setState(() {
+      _markers.removeWhere((m) => m.markerId.value == 'vehicle');
+      _markers.add(_marcadorVehiculo(_carPos!, _carBearing));
+    });
   }
 
   double _calcularBearing(LatLng a, LatLng b) {
@@ -137,7 +174,8 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       _markers.add(Marker(
         markerId: const MarkerId('origin'),
         position: LatLng(oLat, oLng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: MarkerIcons.origin ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: InfoWindow(title: 'Origen', snippet: ride.direccionOrigen),
       ));
     }
@@ -145,29 +183,32 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       _markers.add(Marker(
         markerId: const MarkerId('destination'),
         position: LatLng(dLat, dLng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        icon: MarkerIcons.destination ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: InfoWindow(title: 'Destino', snippet: ride.direccionDestino),
       ));
     }
 
+    // Vehiculo: animacion suave (traslacion + rotacion) a la nueva posicion.
     final vLat = rideProv.conductorLat ?? double.tryParse(ride.conductor?.lat ?? '');
     final vLng = rideProv.conductorLng ?? double.tryParse(ride.conductor?.lng ?? '');
     LatLng? posVeh;
     if (vLat != null && vLng != null) {
-      posVeh = LatLng(vLat, vLng);
-      if (_ultimaPosVehiculo != null && (_ultimaPosVehiculo!.latitude != vLat || _ultimaPosVehiculo!.longitude != vLng)) {
-        _bearingVehiculo = _calcularBearing(_ultimaPosVehiculo!, posVeh);
+      final nueva = LatLng(vLat, vLng);
+      posVeh = _carPos ?? nueva;
+      final cambio = _carTo == null || _carTo!.latitude != vLat || _carTo!.longitude != vLng;
+      if (cambio) {
+        final desde = _carPos ?? nueva;
+        final bearing = (nueva.latitude != desde.latitude || nueva.longitude != desde.longitude)
+            ? _calcularBearing(desde, nueva)
+            : _carBearing;
+        _carFrom = desde;
+        _carTo = nueva;
+        _carBearingFrom = _carBearing;
+        _carBearingTo = _bearingCorto(_carBearing, bearing);
+        _carAnim.forward(from: 0);
       }
-      _ultimaPosVehiculo = posVeh;
-      _markers.add(Marker(
-        markerId: const MarkerId('vehicle'),
-        position: posVeh,
-        rotation: _bearingVehiculo,
-        flat: true,
-        anchor: const Offset(0.5, 0.5),
-        icon: _carIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-        infoWindow: const InfoWindow(title: 'Tu conductor'),
-      ));
+      _markers.add(_marcadorVehiculo(_carPos ?? nueva, _carBearing));
     }
 
     // Ruta: al origen mientras el conductor llega; al destino durante el viaje.
@@ -786,12 +827,12 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     return _card(
       child: Column(
         children: [
-          _renglonRuta(Icons.trip_origin, VaiaColors.success, 'Origen', ride.direccionOrigen),
+          _renglonRuta(const MarkerIcon(origin: true), 'Origen', ride.direccionOrigen),
           Padding(
             padding: const EdgeInsets.only(left: 11),
             child: Row(children: [Container(width: 2, height: 18, color: VaiaColors.border)]),
           ),
-          _renglonRuta(Icons.location_on_rounded, VaiaColors.danger, 'Destino', ride.direccionDestino),
+          _renglonRuta(const MarkerIcon(origin: false), 'Destino', ride.direccionDestino),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 12),
@@ -809,11 +850,11 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     );
   }
 
-  Widget _renglonRuta(IconData icon, Color color, String label, String valor) {
+  Widget _renglonRuta(Widget icon, String label, String valor) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: color),
+        SizedBox(width: 18, height: 18, child: Center(child: icon)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

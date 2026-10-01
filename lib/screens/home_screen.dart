@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,6 +16,7 @@ import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../widgets/location_gate.dart';
 import '../../services/locale_provider.dart';
+import '../../services/marker_icons.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import 'service_request_screen.dart';
@@ -39,7 +39,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _mapError = false;
 
   // Unidades cercanas
-  BitmapDescriptor? _carIcon;
   final Map<int, LatLng> _driverPos = {};
   final Map<int, double> _driverBearing = {};
   Timer? _driversTimer;
@@ -159,11 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _cargarIconoCarrito() async {
-    try {
-      final data = await rootBundle.load('assets/images/car.png');
-      final bd = BitmapDescriptor.fromBytes(data.buffer.asUint8List());
-      if (mounted) setState(() => _carIcon = bd);
-    } catch (_) {}
+    await MarkerIcons.cargar();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -265,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
               rotation: _driverBearing[d.id] ?? 0,
               flat: true,
               anchor: const Offset(0.5, 0.5),
-              icon: _carIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+              icon: MarkerIcons.car ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
               infoWindow: InfoWindow(title: d.nombreCompleto, snippet: snippet),
             ),
           );

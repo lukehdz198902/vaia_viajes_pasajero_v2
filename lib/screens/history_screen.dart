@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../models/ride_model.dart';
 import '../../config/theme.dart';
+import '../../services/marker_icons.dart';
 
 /// Historial de viajes del pasajero con filtro por mes y año (por defecto el
 /// mes actual) y resumen del periodo.
@@ -217,12 +218,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              _ruta(Icons.trip_origin, VaiaColors.success, v.direccionOrigen),
+              _ruta(const MarkerIcon(origin: true, size: 14), v.direccionOrigen),
               Padding(
                 padding: const EdgeInsets.only(left: 7),
                 child: Container(width: 2, height: 12, color: VaiaColors.border),
               ),
-              _ruta(Icons.location_on_rounded, VaiaColors.danger, v.direccionDestino),
+              _ruta(const MarkerIcon(origin: false, size: 14), v.direccionDestino),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -246,11 +247,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return VaiaColors.textMuted;
   }
 
-  Widget _ruta(IconData icon, Color color, String texto) {
+  Widget _ruta(Widget icon, String texto) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 14, color: color),
+        icon,
         const SizedBox(width: 8),
         Expanded(child: Text(texto.isEmpty ? '-' : texto, style: const TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
       ],

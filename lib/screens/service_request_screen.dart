@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../services/directions_service.dart';
+import '../../services/marker_icons.dart';
 import 'service_status_screen.dart';
 import 'place_search_screen.dart';
 
@@ -60,6 +61,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     _originLatLng = LatLng(widget.currentLat, widget.currentLng);
     _originController.text = 'Mi ubicacion actual';
     _updateMapMarkers();
+    MarkerIcons.cargar().then((_) { if (mounted) _updateMapMarkers(); });
     // Tarifas vigentes del servidor (costo minimo, por km y por minuto)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -82,7 +84,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       _markers.add(Marker(
         markerId: const MarkerId('origin'),
         position: _originLatLng!,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        icon: MarkerIcons.origin ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: const InfoWindow(title: 'Origen'),
       ));
     }
@@ -90,7 +93,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       _markers.add(Marker(
         markerId: const MarkerId('destination'),
         position: _destinationLatLng!,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        icon: MarkerIcons.destination ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: const InfoWindow(title: 'Destino'),
       ));
     }

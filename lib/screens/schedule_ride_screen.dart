@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../config/theme.dart';
 import '../providers/ride_provider.dart';
+import '../services/marker_icons.dart';
 import '../widgets/vaia_widgets.dart';
 import 'place_search_screen.dart';
 
@@ -36,7 +37,8 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
       markers.add(Marker(
         markerId: const MarkerId('origen'),
         position: _origenLatLng!,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: MarkerIcons.origin ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: InfoWindow(title: 'Origen', snippet: _originCtrl.text),
       ));
     }
@@ -44,7 +46,8 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
       markers.add(Marker(
         markerId: const MarkerId('destino'),
         position: _destinoLatLng!,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        icon: MarkerIcons.destination ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: InfoWindow(title: 'Destino', snippet: _destinoCtrl.text),
       ));
     }
@@ -94,6 +97,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
   @override
   void initState() {
     super.initState();
+    MarkerIcons.cargar().then((_) { if (mounted) _actualizarMapa(); });
     _cargarUbicacionActual();
   }
 
