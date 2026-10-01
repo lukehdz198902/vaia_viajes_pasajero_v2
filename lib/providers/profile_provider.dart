@@ -175,6 +175,21 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
+  Map<String, dynamic>? _resumenGeneral;
+  Map<String, dynamic>? get resumenGeneral => _resumenGeneral;
+
+  /// Carga el resumen general (todos los viajes) y la calificacion promedio.
+  Future<void> cargarResumenGeneral() async {
+    if (_auth.userId <= 0) return;
+    try {
+      final res = await _api.resumenGeneral(_auth.userId);
+      if (res.success && res.firstOrNull() is Map) {
+        _resumenGeneral = Map<String, dynamic>.from(res.firstOrNull() as Map);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   Future<void> cargarPromociones() async {
     try {
       final res = await _api.get('/ObtenerPromociones');

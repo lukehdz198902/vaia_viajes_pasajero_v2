@@ -42,6 +42,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProfileProvider>().cargarResumenGeneral();
+    });
     final user = context.read<AuthProvider>().user;
     if (user != null) {
       _nombreCtrl.text = user.nombre;
@@ -57,6 +60,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// Sube o cambia la foto de perfil (camara o galeria).
+  /// Resumen del uso (todos los viajes) y calificacion promedio del pasajero.
+  /// No muestra el detalle de las evaluaciones de los conductores.
+  Widget _resumenCard(Map<String, dynamic>? r) {
+    double d(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0;
+    final recibida = d(r?['calificacionrecibida']);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(children: [
+              Icon(Icons.insights_rounded, size: 18, color: AppTheme.primary),
+              SizedBox(width: 8),
+              Text('Tu resumen', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              _kpi('${r?['viajes'] ?? 0}', 'Viajes'),
+              _kpi('\$${d(r?['total']).toStringAsFixed(0)}', 'Gastado'),
+              _kpi('${d(r?['km']).toStringAsFixed(0)} km', 'Recorrido'),
+              _kpi(recibida > 0 ? recibida.toStringAsFixed(1) : '--', 'Tu calificacion'),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpi(String valor, String label) => Expanded(
+        child: Column(children: [
+          Text(valor, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppTheme.primary)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 10.5, color: AppTheme.textMedium), textAlign: TextAlign.center),
+        ]),
+      );
+
   Future<void> _cambiarFoto() async {
     final origen = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -288,6 +328,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            _resumenCard(context.watch<ProfileProvider>().resumenGeneral),
+            const SizedBox(height: 12),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),

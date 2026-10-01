@@ -14,6 +14,7 @@ import 'providers/profile_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/soporte_provider.dart';
 import 'providers/theme_provider.dart';
+import 'services/locale_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,7 @@ class VaiaViajesApp extends StatelessWidget {
         Provider<ApiService>.value(value: api),
         Provider<SignalRService>.value(value: signalr),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()..cargar()),
         ChangeNotifierProvider(create: (_) => AuthProvider(api, storage, signalr)),
         ChangeNotifierProxyProvider<AuthProvider, RideProvider>(
           create: (ctx) => RideProvider(api, signalr, ctx.read<AuthProvider>()),
@@ -57,15 +59,15 @@ class VaiaViajesApp extends StatelessWidget {
           update: (_, auth, prev) => prev!..updateAuth(auth),
         ),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (_, themeProv, _) {
+      child: Consumer2<ThemeProvider, LocaleProvider>(
+        builder: (_, themeProv, localeProv, _) {
           return MaterialApp(
             title: 'Vaia Viajes',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProv.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            locale: const Locale('es'),
+            locale: localeProv.locale,
             supportedLocales: const [Locale('es'), Locale('en')],
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,

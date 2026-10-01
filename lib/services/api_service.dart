@@ -183,6 +183,25 @@ class ApiService {
   Future<ApiResponse> marcarNotificacionesLeidas(int idPasajero) =>
       post('/MarcarNotificacionesLeidas', body: {'idPasajero': idPasajero});
 
+  // ─── RESUMEN / EMERGENCIA / DISPOSITIVOS ─────────────────────
+  Future<ApiResponse> resumenGeneral(int idPasajero) =>
+      get('/ResumenGeneral', params: {'idPasajero': idPasajero.toString()});
+
+  Future<ApiResponse> obtenerContactoEmergencia(int idPasajero) =>
+      get('/ObtenerContactoEmergencia', params: {'idPasajero': idPasajero.toString()});
+
+  Future<ApiResponse> guardarContactoEmergencia(Map<String, dynamic> data) =>
+      post('/GuardarContactoEmergencia', body: data);
+
+  Future<ApiResponse> listarSesiones(int idPasajero, {String? tokenActual}) =>
+      get('/ListarSesiones', params: {
+        'idPasajero': idPasajero.toString(),
+        if (tokenActual != null && tokenActual.isNotEmpty) 'tokenActual': tokenActual,
+      });
+
+  Future<ApiResponse> cerrarSesionDispositivo(int id, int idPasajero) =>
+      post('/CerrarSesionDispositivo', body: {'id': id, 'idPasajero': idPasajero});
+
   Future<ApiResponse> listarParadas(int idServicio) =>
       getRoot('Servicio', 'ListarParadas', params: {'idservicio': idServicio.toString()});
 

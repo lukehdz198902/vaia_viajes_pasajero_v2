@@ -4,6 +4,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../config/theme.dart';
+import '../../services/api_service.dart';
+import '../../services/locale_provider.dart';
 import '../../services/biometric_service.dart';
 import '../../services/storage_service.dart';
 import 'login_screen.dart';
@@ -32,6 +34,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _biometria = false;
   bool _pinHabilitado = false;
 
+  // Contacto de emergencia
+  final _emNombreCtrl = TextEditingController();
+  final _emTelCtrl = TextEditingController();
+  final _emCorreo1Ctrl = TextEditingController();
+  final _emCorreo2Ctrl = TextEditingController();
+  bool _guardandoEmergencia = false;
+
+  // Dispositivos
+  List<Map<String, dynamic>> _sesiones = [];
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +53,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
     StorageService().getPinHabilitado().then((v) {
       if (mounted) setState(() => _pinHabilitado = v);
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _cargarEmergenciaYSesiones());
+  }
+
+  void _toast(String msg, {bool ok = true}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: ok ? AppTheme.success : AppTheme.danger,
+    ));
+  }
+
+  Future<void> _cargarEmergenciaYSesiones() async {
+    final auth = context.read<AuthProvider>();
+    final api = context.read<ApiService>();
+    try {
+      final c = await api.obtenerContactoEmergencia(auth.userId);
+      if (c.success && c.firstOrNull() is Map) {
+        final m = Map<String, dynamic>.from(c.firstOrNull() as Map);
+        if (mounted) {
+          setState(() {
+            _emNombreCtrl.text = m['nombrecompleto']?.toString() ?? '';
+            _emTelCtrl.text = m['telefono']?.toString() ?? '';
+            _emCorreo1Ctrl.text = m['correo1']?.toString() ?? '';
+            _emCorreo2Ctrl.text = m['correo2']?.toString() ?? '';
+          });
+        }
+      }
+    } catch (_) {}
+    try {
+      final token = await StorageService().getSessionToken();
+      final s = await api.listarSesiones(auth.userId, tokenActual: token);
+      if (s.success && s.list != null && mounted) {
+        setState(() => _sesiones = s.list!.map((e) => Map<String, dynamic>.from(e as Map)).toList());
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _guardarEmergencia() async {
+    if (_emNombreCtrl.text.trim().isEmpty) { _toast('Ingresa el nombre del contacto', ok: false); return; }
+    final tel = _emTelCtrl.text.trim();
+    if (!RegExp(r'^\d{10}$').hasMatch(tel)) { _toast('El telefono debe tener 10 digitos', ok: false); return; }
+    if (_emCorreo1Ctrl.text.trim().isEmpty) { _toast('Ingresa el correo electronico principal', ok: false); return; }
+    final auth = context.read<AuthProvider>();
+    final api = context.read<ApiService>();
+    setState(() => _guardandoEmergencia = true);
+    final res = await api.guardarContactoEmergencia({
+      'idPasajero': auth.userId,
+      'nombrecompleto': _emNombreCtrl.text.trim(),
+      'telefono': tel,
+      'correo1': _emCorreo1Ctrl.text.trim(),
+      'correo2': _emCorreo2Ctrl.text.trim().isEmpty ? null : _emCorreo2Ctrl.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() => _guardandoEmergencia = false);
+    _toast(res.success ? 'Contacto de emergencia guardado' : 'No se pudo guardar', ok: res.success);
+  }
+
+  Future<void> _cerrarDispositivo(Map<String, dynamic> s) async {
+    final auth = context.read<AuthProvider>();
+    final api = context.read<ApiService>();
+    final id = int.tryParse(s['id']?.toString() ?? '') ?? 0;
+    if (id <= 0) return;
+    final res = await api.cerrarSesionDispositivo(id, auth.userId);
+    if (res.success && mounted) {
+      _toast('Sesion cerrada en el dispositivo');
+      _cargarEmergenciaYSesiones();
+    }
   }
 
   /// Activa, cambia o desactiva el PIN de seguridad.
@@ -92,7 +171,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _codigoPaisCtrl.dispose();
     _telefonoCtrl.dispose();
     _codigoVerifCtrl.dispose();
+    _emNombreCtrl.dispose();
+    _emTelCtrl.dispose();
+    _emCorreo1Ctrl.dispose();
+    _emCorreo2Ctrl.dispose();
     super.dispose();
+  }
+
+  String _fechaAcceso(dynamic iso) {
+    if (iso == null) return '';
+    try {
+      final d = DateTime.parse(iso.toString()).toLocal();
+      return 'Ultimo acceso: ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '';
+    }
   }
 
   Future<void> _cambiarPassword() async {
@@ -181,10 +274,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProv = context.watch<ThemeProvider>();
+    final idioma = context.watch<LocaleProvider>();
     final isDark = themeProv.isDarkMode;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Configuracion')),
+      appBar: AppBar(title: Text(S.t(context, 'Configuracion', 'Settings'))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -202,6 +296,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: isDark,
                   onChanged: (v) => themeProv.setDarkMode(v),
                   activeTrackColor: AppTheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.language_rounded, color: AppTheme.primary),
+                title: const Text('Idioma / Language', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(idioma.lang == 'en' ? 'English' : 'Espanol', style: const TextStyle(color: AppTheme.textMedium)),
+                trailing: SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'es', label: Text('ES')),
+                    ButtonSegment(value: 'en', label: Text('EN')),
+                  ],
+                  selected: {idioma.lang},
+                  onSelectionChanged: (s) => idioma.setLang(s.first),
                 ),
               ),
             ),
@@ -384,6 +494,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     label: const Text('Ver permisos y politicas'),
                   ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _sectionHeader('Contacto de emergencia'),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildField('Nombre completo', _emNombreCtrl),
+                    const SizedBox(height: 12),
+                    _buildField('Telefono (10 digitos, con codigo de pais)', _emTelCtrl, keyboardType: TextInputType.phone),
+                    const SizedBox(height: 12),
+                    _buildField('Correo electronico 1', _emCorreo1Ctrl, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 12),
+                    _buildField('Correo electronico 2 (opcional)', _emCorreo2Ctrl, keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _guardandoEmergencia ? null : _guardarEmergencia,
+                        icon: _guardandoEmergencia
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.save_rounded),
+                        label: const Text('Guardar contacto'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _sectionHeader('Dispositivos conectados'),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: _sesiones.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('No hay dispositivos registrados', style: TextStyle(color: AppTheme.textMedium)),
+                      )
+                    : Column(
+                        children: _sesiones.map((s) {
+                          final esActual = s['esactual'] == true || s['esactual']?.toString() == '1';
+                          return ListTile(
+                            leading: Icon(Icons.smartphone_rounded, color: esActual ? AppTheme.primary : AppTheme.textMedium),
+                            title: Text((s['dispositivo'] ?? 'Dispositivo').toString(),
+                                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('${s['sistemaoperativo'] ?? ''}\n${_fechaAcceso(s['ultimoacceso'])}',
+                                style: const TextStyle(fontSize: 11.5, color: AppTheme.textMedium)),
+                            isThreeLine: true,
+                            trailing: esActual
+                                ? Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+                                    child: const Text('Este dispositivo', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.primary)),
+                                  )
+                                : IconButton(
+                                    icon: const Icon(Icons.logout_rounded, color: AppTheme.danger, size: 20),
+                                    onPressed: () => _cerrarDispositivo(s),
+                                  ),
+                          );
+                        }).toList(),
+                      ),
               ),
             ),
             const SizedBox(height: 20),

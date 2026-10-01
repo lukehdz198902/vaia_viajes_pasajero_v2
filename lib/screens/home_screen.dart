@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
@@ -9,10 +11,12 @@ import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
 import '../../models/conductor_model.dart';
+import '../../models/promocion_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../widgets/location_gate.dart';
+import '../../services/locale_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import 'service_request_screen.dart';
@@ -55,6 +59,80 @@ class _HomeScreenState extends State<HomeScreen> {
     _driversTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadDrivers());
     _cargarIconoCarrito();
     WidgetsBinding.instance.addPostFrameCallback((_) => _verificarCorreoPendiente());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _mostrarPromoDelDia());
+  }
+
+  bool _promoMostrada = false;
+
+  /// Muestra una promocion activa aleatoria al ingresar a la app.
+  Future<void> _mostrarPromoDelDia() async {
+    if (_promoMostrada || !context.read<AuthProvider>().isLoggedIn) return;
+    final profile = context.read<ProfileProvider>();
+    await profile.cargarPromociones();
+    if (!mounted) return;
+    final activas = profile.promociones.where((p) => p.activo).toList();
+    if (activas.isEmpty) return;
+    final promo = activas[math.Random().nextInt(activas.length)];
+    _promoMostrada = true;
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    _promoDialog(promo);
+  }
+
+  void _promoDialog(PromocionModel p) {
+    Uint8List? img;
+    if (p.imgBase64 != null && p.imgBase64!.isNotEmpty) {
+      try { img = base64Decode(p.imgBase64!); } catch (_) {}
+    }
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (img != null)
+              Image.memory(img, height: 190, width: double.infinity, fit: BoxFit.cover)
+            else
+              Container(
+                height: 150,
+                width: double.infinity,
+                decoration: const BoxDecoration(gradient: VaiaColors.heroGradient),
+                child: const Center(child: Icon(Icons.local_offer_rounded, color: Colors.white, size: 52)),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Text('Promocion para ti', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: VaiaColors.primary, letterSpacing: 1)),
+                  const SizedBox(height: 6),
+                  Text(p.titulo ?? 'Promocion', textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary)),
+                  if ((p.descripcion ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(p.descripcion!, textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13, color: VaiaColors.textSecondary, height: 1.4)),
+                  ],
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.pushNamed(context, '/promotions');
+                      },
+                      child: const Text('Ver promociones'),
+                    ),
+                  ),
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Si el pasajero tenia un servicio en curso, lo reanuda al reabrir la app.
@@ -279,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     minimumSize: const Size.fromHeight(48),
                   ),
                   icon: const Icon(Icons.logout_rounded, size: 18),
-                  label: const Text('Cerrar sesion'),
+                  label: Text(S.t(context, 'Cerrar sesion', 'Log out')),
                 ),
               ),
             ],
@@ -315,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Hola, ${nombre.isEmpty ? 'viajero' : nombre}',
+              Text('${S.t(context, 'Hola', 'Hi')}, ${nombre.isEmpty ? S.t(context, 'viajero', 'traveler') : nombre}',
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
@@ -333,17 +411,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _menuGrid(BuildContext ctx) {
     final items = <(IconData, String, Color, VoidCallback)>[
-      (Icons.person_rounded, 'Mi perfil', VaiaColors.primary, () => Navigator.pushNamed(context, '/profile')),
-      (Icons.star_rounded, 'Favoritos', VaiaColors.accent, () => Navigator.pushNamed(context, '/favorites')),
-      (Icons.history_rounded, 'Historial', VaiaColors.info, () => Navigator.pushNamed(context, '/history')),
-      (Icons.notifications_rounded, 'Notificaciones', VaiaColors.info, () => Navigator.pushNamed(context, '/notifications')),
-      (Icons.local_offer_rounded, 'Promociones', VaiaColors.danger, () => Navigator.pushNamed(context, '/promotions')),
-      (Icons.event_available_rounded, 'Programados', VaiaColors.success, () => Navigator.pushNamed(context, '/scheduled-rides')),
-      (Icons.support_agent_rounded, 'Soporte', VaiaColors.primaryDark, () {
+      (Icons.person_rounded, S.t(context, 'Mi perfil', 'My profile'), VaiaColors.primary, () => Navigator.pushNamed(context, '/profile')),
+      (Icons.star_rounded, S.t(context, 'Favoritos', 'Favorites'), VaiaColors.accent, () => Navigator.pushNamed(context, '/favorites')),
+      (Icons.history_rounded, S.t(context, 'Historial', 'History'), VaiaColors.info, () => Navigator.pushNamed(context, '/history')),
+      (Icons.notifications_rounded, S.t(context, 'Notificaciones', 'Notifications'), VaiaColors.info, () => Navigator.pushNamed(context, '/notifications')),
+      (Icons.local_offer_rounded, S.t(context, 'Promociones', 'Promotions'), VaiaColors.danger, () => Navigator.pushNamed(context, '/promotions')),
+      (Icons.event_available_rounded, S.t(context, 'Programados', 'Scheduled'), VaiaColors.success, () => Navigator.pushNamed(context, '/scheduled-rides')),
+      (Icons.support_agent_rounded, S.t(context, 'Soporte', 'Support'), VaiaColors.primaryDark, () {
         final ride = context.read<RideProvider>();
         Navigator.pushNamed(context, '/support-chat', arguments: {'idServicio': ride.currentRide?.id});
       }),
-      (Icons.settings_rounded, 'Ajustes', VaiaColors.textSecondary, () => Navigator.pushNamed(context, '/settings')),
+      (Icons.settings_rounded, S.t(context, 'Ajustes', 'Settings'), VaiaColors.textSecondary, () => Navigator.pushNamed(context, '/settings')),
     ];
     return GridView.count(
       crossAxisCount: 4,
@@ -386,14 +464,15 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           const Icon(Icons.directions_car_filled_rounded, color: Colors.white, size: 34),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Tienes un auto?', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
-                SizedBox(height: 2),
-                Text('Unete como conductor y genera ingresos con Vaia.',
-                    style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.3)),
+                Text(S.t(context, 'Tienes un auto?', 'Have a car?'),
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(S.t(context, 'Unete como conductor y genera ingresos con Vaia.', 'Join as a driver and earn with Vaia.'),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.3)),
               ],
             ),
           ),
@@ -401,7 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: () => _abrirAppConductor(ctx),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: VaiaColors.primaryDark, padding: const EdgeInsets.symmetric(horizontal: 14)),
-            child: const Text('Unirme'),
+            child: Text(S.t(context, 'Unirme', 'Join')),
           ),
         ],
       ),
