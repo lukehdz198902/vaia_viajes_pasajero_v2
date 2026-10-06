@@ -202,6 +202,17 @@ class ApiService {
   Future<ApiResponse> cerrarSesionDispositivo(int id, int idPasajero) =>
       post('/CerrarSesionDispositivo', body: {'id': id, 'idPasajero': idPasajero});
 
+  /// Registra el dispositivo actual (nombre real) para el listado de
+  /// "Dispositivos conectados".
+  Future<ApiResponse> registrarSesion(int idPasajero, String token,
+      {String? dispositivo, String? so}) =>
+      post('/RegistrarSesion', body: {
+        'idPasajero': idPasajero,
+        'token': token,
+        'dispositivo': dispositivo ?? '',
+        'so': so ?? '',
+      });
+
   Future<ApiResponse> listarParadas(int idServicio) =>
       getRoot('Servicio', 'ListarParadas', params: {'idservicio': idServicio.toString()});
 

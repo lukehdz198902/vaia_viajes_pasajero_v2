@@ -8,6 +8,7 @@ import '../../services/api_service.dart';
 import '../../services/locale_provider.dart';
 import '../../services/biometric_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/app_info.dart';
 import 'login_screen.dart';
 import 'pin_screens.dart';
 
@@ -572,7 +573,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Version', style: TextStyle(fontSize: 14, color: AppTheme.textDark)),
-                    Text('1.0.0', style: TextStyle(fontSize: 14, color: AppTheme.textMedium)),
+                    Text(AppInfo.versionCompleta, style: const TextStyle(fontSize: 14, color: AppTheme.textMedium)),
                   ],
                 ),
               ),

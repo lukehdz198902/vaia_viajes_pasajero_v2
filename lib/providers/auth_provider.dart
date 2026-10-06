@@ -5,6 +5,7 @@ import '../services/storage_service.dart';
 import '../services/signalr_service.dart';
 import '../services/notification_service.dart';
 import '../services/logger.dart';
+import '../services/app_info.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _api;
@@ -69,6 +70,7 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         Logger.i('Auth', 'login() OK - user ${_user!.nombreCompleto} logged in');
         _registrarToken();
+        _registrarSesion();
         // Trae el estatus REAL del servidor (correo/telefono verificados).
         await refreshPerfil();
         return true;
@@ -194,6 +196,7 @@ class AuthProvider extends ChangeNotifier {
         _loading = false;
         notifyListeners();
         _registrarToken();
+        _registrarSesion();
         return true;
       }
       _error = res.getMensaje() ?? 'No se pudo iniciar sesion con Google';
@@ -333,6 +336,7 @@ class AuthProvider extends ChangeNotifier {
       }
       notifyListeners();
       _registrarToken();
+      _registrarSesion();
       // Refresca el perfil para traer las banderas de verificacion actualizadas.
       await refreshPerfil();
       return true;
@@ -365,6 +369,19 @@ class AuthProvider extends ChangeNotifier {
       Logger.i('Auth', 'Token FCM registrado');
     } catch (e) {
       Logger.w('Auth', 'No se pudo registrar el token FCM: $e');
+    }
+  }
+
+  /// Registra el dispositivo actual en el servidor para que aparezca en el
+  /// listado de "Dispositivos conectados" (y pueda cerrarse remotamente).
+  Future<void> _registrarSesion() async {
+    final token = _user?.uuidsesion;
+    if (_user == null || token == null || token.isEmpty) return;
+    try {
+      await _api.registrarSesion(_user!.id, token,
+          dispositivo: AppInfo.dispositivo, so: AppInfo.sistemaOperativo);
+    } catch (e) {
+      Logger.w('Auth', 'No se pudo registrar la sesion/dispositivo: $e');
     }
   }
 

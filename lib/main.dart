@@ -15,12 +15,14 @@ import 'providers/chat_provider.dart';
 import 'providers/soporte_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/locale_provider.dart';
+import 'services/app_info.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Inicializa los datos de localizacion en espanol (evita LocaleDataException
   // al usar DateFormat('...', 'es') y muestra los selectores en espanol).
   await initializeDateFormatting('es', null);
+  await AppInfo.cargar();
   await NotificationService.inicializar();
   runApp(const VaiaViajesApp());
 }
