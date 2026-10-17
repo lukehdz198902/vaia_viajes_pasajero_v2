@@ -77,14 +77,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       appBar: AppBar(title: const Text('Nueva Contrasena')),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
             child: Column(
               children: [
                 const SizedBox(height: 40),
                 Icon(Icons.lock_reset, size: 72, color: AppTheme.primary),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
                 const Text(
                   'Restablecer contrasena',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
@@ -94,7 +94,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   'Ingrese su nueva contrasena',
                   style: const TextStyle(fontSize: 14, color: AppTheme.textMedium),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 18),
                 TextFormField(
                   controller: _passCtrl,
                   obscureText: _obscurePass,
@@ -115,7 +115,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 TextFormField(
                   controller: _confirmCtrl,
                   obscureText: _obscureConfirm,
@@ -135,7 +135,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity, height: 50,
                   child: ElevatedButton(

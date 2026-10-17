@@ -85,7 +85,7 @@ class _PlaceSearchScreenState extends State<PlaceSearchScreen> {
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             color: Colors.white,
             child: TextField(
               controller: _searchController,
@@ -161,7 +161,7 @@ class _PlaceSearchScreenState extends State<PlaceSearchScreen> {
     }
     if (_error.isNotEmpty) {
       return Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

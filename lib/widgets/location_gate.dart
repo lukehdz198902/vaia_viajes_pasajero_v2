@@ -91,7 +91,7 @@ class _LocationGateState extends State<LocationGate> with WidgetsBindingObserver
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Image.asset('assets/images/logo.png', width: 130, height: 130),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
                 const Icon(Icons.location_off_rounded, color: VaiaColors.danger, size: 42),
                 const SizedBox(height: 12),
                 Text(

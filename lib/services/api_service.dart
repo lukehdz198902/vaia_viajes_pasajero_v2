@@ -147,10 +147,11 @@ class ApiService {
       postRoot('Pago', 'PayPalCapturar', body: { 'idServicio': idServicio, 'orderId': orderId });
 
   /// Registra/actualiza el token de notificaciones push (FCM) del pasajero.
-  Future<ApiResponse> actualizarToken(int idPasajero, String token) =>
+  Future<ApiResponse> actualizarToken(int idPasajero, String token, {String? so}) =>
       postRoot('Pasajero', 'ActualizarToken', body: {
         'idPasajero': idPasajero,
         'googlekey': token,
+        'so': so ?? '',
       });
 
   /// Obtiene la configuracion de tarifas (costo minimo, por km, por minuto).
@@ -212,6 +213,22 @@ class ApiService {
         'dispositivo': dispositivo ?? '',
         'so': so ?? '',
       });
+
+  // ─── METODOS DE PAGO / GAMAS ─────────────────────────────────
+  Future<ApiResponse> configuracionPago() => get('/ConfiguracionPago');
+
+  Future<ApiResponse> obtenerPreferenciaPago(int idPasajero) =>
+      get('/ObtenerPreferenciaPago', params: {'idPasajero': idPasajero.toString()});
+
+  Future<ApiResponse> guardarPreferenciaPago(int idPasajero, int idTipoPago) =>
+      post('/GuardarPreferenciaPago', body: {'idPasajero': idPasajero, 'idTipoPago': idTipoPago});
+
+  Future<ApiResponse> gamasDisponibles(String lat, String lng, {int radioKm = 10}) =>
+      get('/GamasDisponibles', params: {'lat': lat, 'lng': lng, 'radioKm': radioKm.toString()});
+
+  /// Da de baja (desactiva) la cuenta del pasajero tras validar la contrasena.
+  Future<ApiResponse> darDeBaja(int idPasajero, String pass) =>
+      post('/DarDeBaja', body: {'idPasajero': idPasajero, 'pass': pass});
 
   Future<ApiResponse> listarParadas(int idServicio) =>
       getRoot('Servicio', 'ListarParadas', params: {'idservicio': idServicio.toString()});

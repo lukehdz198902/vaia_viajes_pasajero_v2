@@ -1,3 +1,4 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ride_provider.dart';
@@ -119,7 +120,7 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: VaiaColors.primaryGhost,
-                      backgroundImage: (cond?.fotoperfil != null && cond!.fotoperfil!.isNotEmpty) ? NetworkImage(cond.fotoperfil!) : null,
+                      backgroundImage: providerFoto(cond?.fotoperfil),
                       child: (cond?.fotoperfil == null || cond!.fotoperfil!.isEmpty)
                           ? const Icon(Icons.person_rounded, size: 40, color: VaiaColors.primary)
                           : null,
@@ -144,7 +145,7 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                     ]),
                   ]),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
                 // Recomendacion: guardar el destino como favorito.
                 if ((ride?.direccionDestino ?? '').isNotEmpty)
@@ -224,7 +225,7 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: VaiaColors.primary),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
                 if (_rating > 0) ...[
                   Wrap(

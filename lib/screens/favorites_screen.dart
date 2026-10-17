@@ -57,11 +57,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return Scaffold(
       backgroundColor: VaiaColors.bgLight,
       appBar: AppBar(title: const Text('Favoritos')),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         backgroundColor: VaiaColors.primary,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_location_alt_rounded),
-        label: const Text('Agregar'),
+        tooltip: 'Agregar favorito',
+        child: const Icon(Icons.add_location_alt_rounded),
         onPressed: () async {
           final ok = await mostrarAgregarFavorito(context);
           if (ok && mounted) {
@@ -82,7 +82,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     children: [
                       _mapa(favoritos),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       ..._grupos(favoritos),
                     ],
                   ),
@@ -98,12 +98,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.star_outline_rounded, size: 72, color: VaiaColors.textMuted),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             const Text('Sin favoritos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary)),
             const SizedBox(height: 8),
             const Text('Agrega lugares frecuentes (Casa, Trabajo, etc.) para acceder rapidamente',
                 style: TextStyle(fontSize: 13.5, color: VaiaColors.textSecondary), textAlign: TextAlign.center),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () async {
                 final ok = await mostrarAgregarFavorito(context);
@@ -337,11 +337,11 @@ class _AgregarFavoritoSheetState extends State<_AgregarFavoritoSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Center(child: Container(width: 42, height: 5, decoration: BoxDecoration(color: VaiaColors.border, borderRadius: BorderRadius.circular(3)))),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             const Text('Agregar favorito', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary)),
             const SizedBox(height: 4),
             const Text('Busca el lugar, ponle nombre y elige una categoria', style: TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
 
             // Mapa de previsualizacion / busqueda
             InkWell(
@@ -395,7 +395,7 @@ class _AgregarFavoritoSheetState extends State<_AgregarFavoritoSheet> {
               maxLines: 2,
               decoration: const InputDecoration(labelText: 'Direccion', hintText: 'Direccion del lugar'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             const Align(
               alignment: Alignment.centerLeft,
               child: Text('Categoria', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary)),

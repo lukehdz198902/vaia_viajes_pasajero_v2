@@ -45,6 +45,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Dispositivos
   List<Map<String, dynamic>> _sesiones = [];
 
+  // Metodo de pago predeterminado
+  Map<int, String> _metodosPago = {1: 'Efectivo'};
+  int _prefPago = 1;
+
+  // Baja de cuenta
+  final _bajaPassCtrl = TextEditingController();
+  bool _dandoDeBaja = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +62,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     StorageService().getPinHabilitado().then((v) {
       if (mounted) setState(() => _pinHabilitado = v);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _cargarEmergenciaYSesiones());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _cargarEmergenciaYSesiones();
+      _cargarPago();
+    });
+  }
+
+  Future<void> _cargarPago() async {
+    try {
+      final auth = context.read<AuthProvider>();
+      final api = context.read<ApiService>();
+      final cfg = await api.configuracionPago();
+      final pref = await api.obtenerPreferenciaPago(auth.userId);
+      final m = <int, String>{1: 'Efectivo'};
+      bool act(dynamic v) => v == true || v == 1 || v.toString() == '1' || v.toString() == 'true';
+      if (cfg.success && cfg.list != null && cfg.list!.isNotEmpty) {
+        final c = Map<String, dynamic>.from(cfg.list!.first as Map);
+        if (act(c['paypalactivo'])) m[4] = 'PayPal';
+        if (act(c['mercadopagoactivo'])) m[5] = 'Mercado Pago';
+      }
+      int prefId = 1;
+      if (pref.success && pref.list != null && pref.list!.isNotEmpty) {
+        final p = Map<String, dynamic>.from(pref.list!.first as Map);
+        prefId = int.tryParse(p['idtipopagopreferido']?.toString() ?? '0') ?? 0;
+      }
+      if (!m.containsKey(prefId)) prefId = m.keys.first;
+      if (mounted) setState(() { _metodosPago = m; _prefPago = prefId; });
+    } catch (_) {}
   }
 
   void _toast(String msg, {bool ok = true}) {
@@ -176,7 +210,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _emTelCtrl.dispose();
     _emCorreo1Ctrl.dispose();
     _emCorreo2Ctrl.dispose();
+    _bajaPassCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _darDeBaja() async {
+    _bajaPassCtrl.clear();
+    bool obscure = true;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Dar de baja mi cuenta'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.danger.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
+                ),
+                child: const Text(
+                  'Se desactivara tu cuenta y perderas el acceso. Toda tu informacion quedara inactiva y NO podra recuperarse desde la app.',
+                  style: TextStyle(fontSize: 12.5, color: AppTheme.danger, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _bajaPassCtrl,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'Confirma tu contrasena',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                    onPressed: () => setSt(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () {
+                if (_bajaPassCtrl.text.trim().isEmpty) return;
+                Navigator.pop(ctx, true);
+              },
+              style: TextButton.styleFrom(foregroundColor: AppTheme.danger),
+              child: const Text('Dar de baja'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmar != true) return;
+    if (_bajaPassCtrl.text.trim().isEmpty) {
+      _toast('Ingresa tu contrasena para confirmar', ok: false);
+      return;
+    }
+    setState(() => _dandoDeBaja = true);
+    final auth = context.read<AuthProvider>();
+    final api = context.read<ApiService>();
+    final res = await api.darDeBaja(auth.userId, _bajaPassCtrl.text);
+    if (!mounted) return;
+    setState(() => _dandoDeBaja = false);
+    if (res.success) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          icon: const Icon(Icons.check_circle_outline, color: AppTheme.danger, size: 40),
+          title: const Text('Cuenta dada de baja'),
+          content: const Text(
+            'Tu cuenta fue desactivada. Te enviamos un correo de confirmacion. Si no reconoces este movimiento, contacta al area de soporte de Vaia.',
+            style: TextStyle(fontSize: 13.5),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
+          ],
+        ),
+      );
+      await auth.logout();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } else {
+      final msg = (res.message ?? '').toString();
+      _toast(msg.isNotEmpty ? msg : 'No se pudo dar de baja la cuenta', ok: false);
+    }
   }
 
   String _fechaAcceso(dynamic iso) {
@@ -281,7 +409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(S.t(context, 'Configuracion', 'Settings'))),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -316,12 +444,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            _sectionHeader('Metodo de pago'),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Elige el metodo que se usara por defecto al solicitar un servicio.',
+                        style: TextStyle(color: AppTheme.textMedium, fontSize: 12.5)),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      initialValue: _prefPago,
+                      decoration: const InputDecoration(prefixIcon: Icon(Icons.payments_outlined), labelText: 'Metodo predeterminado'),
+                      items: _metodosPago.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+                      onChanged: (v) async {
+                        if (v == null) return;
+                        setState(() => _prefPago = v);
+                        final auth = context.read<AuthProvider>();
+                        final api = context.read<ApiService>();
+                        await api.guardarPreferenciaPago(auth.userId, v);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             _sectionHeader('Seguridad'),
             const SizedBox(height: 8),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
                     InkWell(
@@ -341,7 +497,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     if (_showPasswordSection) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       _buildField('Contrasena actual', _passActualCtrl, obscure: true),
                       const SizedBox(height: 12),
                       _buildField('Nueva contrasena', _passNuevoCtrl, obscure: true),
@@ -362,12 +518,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _sectionHeader('Informacion de contacto'),
             const SizedBox(height: 8),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
                     InkWell(
@@ -387,7 +543,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     if (_showPhoneSection) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           SizedBox(width: 80, child: _buildField('', _codigoPaisCtrl)),
@@ -424,12 +580,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _sectionHeader('Cuenta'),
             const SizedBox(height: 8),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
                     SizedBox(
@@ -449,7 +605,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _sectionHeader('Seguridad'),
             const SizedBox(height: 8),
             Card(
@@ -480,12 +636,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _sectionHeader('Permisos y privacidad'),
             const SizedBox(height: 8),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -497,12 +653,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _sectionHeader('Contacto de emergencia'),
             const SizedBox(height: 8),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
                     _buildField('Nombre completo', _emNombreCtrl),
@@ -527,7 +683,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _sectionHeader('Dispositivos conectados'),
             const SizedBox(height: 8),
             Card(
@@ -563,12 +719,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _sectionHeader('Acerca de'),
             const SizedBox(height: 8),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -578,7 +734,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 6),
+            Center(
+              child: _dandoDeBaja
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : TextButton(
+                      onPressed: _darDeBaja,
+                      style: TextButton.styleFrom(foregroundColor: AppTheme.textMedium),
+                      child: const Text('Dar de baja mi cuenta', style: TextStyle(fontSize: 11.5)),
+                    ),
+            ),
+            const SizedBox(height: 14),
           ],
         ),
       ),

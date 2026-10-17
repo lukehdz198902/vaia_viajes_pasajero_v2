@@ -43,7 +43,7 @@ class _ScheduledRidesScreenState extends State<ScheduledRidesScreen> {
             : ride.programados.isEmpty
                 ? _buildVacio()
                 : ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     itemCount: ride.programados.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (ctx, i) => _card(ride.programados[i]),
@@ -70,7 +70,7 @@ class _ScheduledRidesScreenState extends State<ScheduledRidesScreen> {
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.18),
         const Icon(Icons.event_available_rounded, size: 72, color: VaiaColors.textMuted),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         Center(child: Text('Sin viajes programados', style: Theme.of(context).textTheme.titleMedium)),
         const SizedBox(height: 6),
         Center(

@@ -94,7 +94,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
             child: Column(
@@ -102,7 +102,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
               children: [
                 Center(
                   child: Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: VaiaColors.primaryGhost, borderRadius: BorderRadius.circular(20)),
                     child: const Icon(Icons.lock_reset_rounded, size: 52, color: VaiaColors.primary),
                   ),

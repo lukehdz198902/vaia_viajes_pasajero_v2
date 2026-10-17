@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
@@ -17,8 +20,10 @@ import '../../providers/ride_provider.dart';
 import '../../widgets/location_gate.dart';
 import '../../services/locale_provider.dart';
 import '../../services/marker_icons.dart';
+import '../../services/foto_util.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/vaia_widgets.dart';
+import '../../widgets/promo_carousel.dart';
 import 'service_request_screen.dart';
 import 'service_status_screen.dart';
 import 'login_screen.dart';
@@ -59,6 +64,90 @@ class _HomeScreenState extends State<HomeScreen> {
     _cargarIconoCarrito();
     WidgetsBinding.instance.addPostFrameCallback((_) => _verificarCorreoPendiente());
     WidgetsBinding.instance.addPostFrameCallback((_) => _mostrarPromoDelDia());
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) _preguntarCalificar();
+    });
+  }
+
+  Widget _accionMini(IconData icon, String label, VoidCallback onTap, {Color? color}) {
+    final c = color ?? VaiaColors.primary;
+    return Material(
+      color: c.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 15, color: c),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(label,
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: c),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _compartirApp() async {
+    const link = 'https://play.google.com/store/apps/details?id=prozoft.com.vaia&hl=es_MX';
+    final msg = Uri.encodeComponent('Viaja comodo y seguro con Vaia. Descarga la app: $link');
+    final uri = Uri.parse('https://wa.me/?text=$msg');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (_) {}
+    await Clipboard.setData(const ClipboardData(text: link));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enlace copiado')));
+    }
+  }
+
+  Future<void> _calificarApp() async {
+    // En iOS cambia el id por el de tu App Store cuando este publicada.
+    final uri = Platform.isIOS
+        ? Uri.parse('https://apps.apple.com/app/id0000000000')
+        : Uri.parse('https://play.google.com/store/apps/details?id=prozoft.com.vaia&hl=es_MX');
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  Future<void> _preguntarCalificar() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('rate_prompt_done') == true) return;
+      if (!mounted) return;
+      final ahora = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          icon: const Icon(Icons.star_rounded, color: VaiaColors.accent, size: 40),
+          title: const Text('¿Te gusta Vaia?'),
+          content: const Text(
+            'Tu calificacion nos ayuda a mejorar. ¿Quieres calificar la app ahora?',
+            style: TextStyle(fontSize: 13.5),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Mas tarde')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: VaiaColors.primary),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Calificar ahora'),
+            ),
+          ],
+        ),
+      );
+      await prefs.setBool('rate_prompt_done', true);
+      if (ahora == true) await _calificarApp();
+    } catch (_) {}
   }
 
   bool _promoMostrada = false;
@@ -101,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Center(child: Icon(Icons.local_offer_rounded, color: Colors.white, size: 52)),
               ),
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 children: [
                   const Text('Promocion para ti', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: VaiaColors.primary, letterSpacing: 1)),
@@ -305,6 +394,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showMenuSheet() {
     final auth = context.read<AuthProvider>();
     final user = auth.user;
+    final promos = context.read<ProfileProvider>().promociones;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -331,8 +421,26 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 18),
               _menuHeader(user),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               _menuGrid(ctx),
+              if (promos.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Row(children: [
+                  const Icon(Icons.campaign_rounded, size: 16, color: VaiaColors.accent),
+                  const SizedBox(width: 6),
+                  Text(S.t(context, 'Publicidad', 'Advertising'),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: VaiaColors.textSecondary)),
+                ]),
+                const SizedBox(height: 8),
+                PromoCarousel(
+                  promociones: promos,
+                  height: 150,
+                  onTapPromo: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.pushNamed(context, '/promotions');
+                  },
+                ),
+              ],
               const SizedBox(height: 18),
               _unirseConductor(ctx),
               const SizedBox(height: 14),
@@ -378,8 +486,8 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CircleAvatar(
             radius: 30,
             backgroundColor: VaiaColors.surface,
-            backgroundImage: (foto != null && foto.isNotEmpty) ? NetworkImage(foto) : null,
-            child: (foto == null || foto.isEmpty)
+            backgroundImage: providerFoto(foto),
+            child: providerFoto(foto) == null
                 ? Text(iniciales, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: VaiaColors.primary))
                 : null,
           ),
@@ -451,7 +559,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _unirseConductor(BuildContext ctx) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: VaiaColors.heroGradient,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -606,19 +714,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
                   },
                 ),
-                const SizedBox(height: 8),
-                FloatingActionButton.small(
-                  heroTag: 'sos',
-                  backgroundColor: VaiaColors.danger,
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('SOS - Alarma enviada')),
-                    );
-                  },
-                  child: const Icon(Icons.shield_rounded, size: 18),
-                ),
               ],
             ),
           ),
@@ -662,7 +757,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 size: 80,
                 color: Colors.white.withOpacity(0.7),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Text(
                 _currentPosition == null
                     ? 'Ubicacion no disponible'
@@ -710,7 +805,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.map_outlined, size: 80, color: VaiaColors.textMuted),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Text(
                 'Mapa no disponible',
                 style: Theme.of(context).textTheme.titleMedium,
@@ -772,6 +867,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+              if (profile.promociones.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                PromoCarousel(
+                  promociones: profile.promociones,
+                  onTapPromo: () => Navigator.pushNamed(context, '/promotions'),
+                ),
+              ],
               if (profile.favoritos.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 _favoritosList(profile),
@@ -786,9 +888,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       () => Navigator.pushNamed(context, '/favorites')),
                   _quickAction(Icons.history_rounded, 'Historial',
                       () => Navigator.pushNamed(context, '/history')),
-                  _quickAction(Icons.local_offer_outlined, 'Promos',
+                  _quickAction(Icons.campaign_outlined, 'Anuncios',
                       () => Navigator.pushNamed(context, '/promotions'),
                       accent: VaiaColors.accent),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: _accionMini(Icons.share_rounded, S.t(context, 'Compartir app', 'Share app'), _compartirApp)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _accionMini(Icons.star_rounded, S.t(context, 'Calificar app', 'Rate app'), _calificarApp, color: VaiaColors.accent)),
                 ],
               ),
               const SizedBox(height: 4),

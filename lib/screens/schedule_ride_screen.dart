@@ -237,7 +237,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
         title: const Text('Programar viaje'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -257,7 +257,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             Container(
               height: 210,
               clipBehavior: Clip.antiAlias,
@@ -309,7 +309,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
             const SizedBox(height: 8),
             const Text('El mapa muestra el origen, el destino y las paradas que agregues.',
                 style: TextStyle(fontSize: 11.5, color: VaiaColors.textMuted)),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             VaiaTextField(
               controller: _originCtrl,
               label: 'Origen',
@@ -367,12 +367,12 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
                 ),
               )),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             InkWell(
               onTap: _elegirFecha,
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: VaiaColors.surface,
                   borderRadius: BorderRadius.circular(12),
@@ -406,7 +406,7 @@ class _ScheduleRideScreenState extends State<ScheduleRideScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 16),
             VaiaPrimaryButton(
               label: 'Programar viaje',
               icon: Icons.check_rounded,

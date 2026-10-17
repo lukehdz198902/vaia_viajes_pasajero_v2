@@ -12,6 +12,9 @@ import '../../models/ride_model.dart';
 import '../../services/api_service.dart';
 import '../../services/directions_service.dart';
 import '../../services/marker_icons.dart';
+import '../../services/sound_service.dart';
+import '../../widgets/ruta_timeline.dart';
+import '../../services/foto_util.dart';
 import '../../widgets/status_timeline.dart';
 import 'rating_screen.dart';
 import 'chat_screen.dart';
@@ -46,6 +49,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
   bool _copiado = false;
   int _ultimoPasoCamara = -99;
   RideProvider? _rideRef;
+  String? _ultimoEstado;
 
   @override
   void initState() {
@@ -68,6 +72,12 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
   void _onRideChanged() {
     if (!mounted) return;
     final rideProv = context.read<RideProvider>();
+    // Sonido al cambiar de estatus el servicio (conductor asignado, en viaje, etc).
+    final nuevoEstado = rideProv.currentRide?.estatus;
+    if (nuevoEstado != null && nuevoEstado != _ultimoEstado) {
+      if (_ultimoEstado != null) SoundService.cambioEstatus();
+      _ultimoEstado = nuevoEstado;
+    }
     if (rideProv.currentRide == null && !_yaNavegoFin) {
       final motivo = rideProv.ultimoMotivoCancelacion;
       if (motivo != null && motivo.trim().isNotEmpty) {
@@ -567,13 +577,13 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
               decoration: BoxDecoration(color: VaiaColors.border, borderRadius: BorderRadius.circular(3)),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           _tituloEstatus(ride),
           const SizedBox(height: 18),
 
           StatusTimeline(pasoActual: ride.pasoActual, cancelado: ride.cancelado, compacto: true),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
           if (cond != null) ...[
             _tarjetaConductor(ride, cond),
@@ -662,27 +672,29 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
         children: [
           Row(
             children: [
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: VaiaColors.primaryGhost,
-                    backgroundImage: (cond?.fotoperfil != null && cond.fotoperfil.toString().isNotEmpty)
-                        ? NetworkImage(cond.fotoperfil.toString())
-                        : null,
-                    child: (cond?.fotoperfil == null || cond.fotoperfil.toString().isEmpty)
-                        ? const Icon(Icons.person_rounded, color: VaiaColors.primary, size: 30)
-                        : null,
-                  ),
-                  Positioned(
-                    right: -2, bottom: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(color: VaiaColors.primary, shape: BoxShape.circle),
-                      child: const Icon(Icons.verified_rounded, size: 12, color: Colors.white),
+              Padding(
+                padding: const EdgeInsets.only(right: 4, bottom: 4),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: VaiaColors.primaryGhost,
+                      backgroundImage: providerFoto(cond?.fotoperfil?.toString()),
+                      child: providerFoto(cond?.fotoperfil?.toString()) == null
+                          ? const Icon(Icons.person_rounded, color: VaiaColors.primary, size: 30)
+                          : null,
                     ),
-                  ),
-                ],
+                    Positioned(
+                      right: -2, bottom: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(color: VaiaColors.primary, shape: BoxShape.circle),
+                        child: const Icon(Icons.verified_rounded, size: 12, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -792,7 +804,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
   Widget _tarjetaCodigo(String codigo) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [VaiaColors.primary.withValues(alpha: 0.12), VaiaColors.primary.withValues(alpha: 0.04)]),
         borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -827,12 +839,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
     return _card(
       child: Column(
         children: [
-          _renglonRuta(const MarkerIcon(origin: true), 'Origen', ride.direccionOrigen),
-          Padding(
-            padding: const EdgeInsets.only(left: 11),
-            child: Row(children: [Container(width: 2, height: 18, color: VaiaColors.border)]),
-          ),
-          _renglonRuta(const MarkerIcon(origin: false), 'Destino', ride.direccionDestino),
+          RutaTimeline(origen: ride.direccionOrigen, destino: ride.direccionDestino),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 12),
@@ -1037,7 +1044,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
 
   Widget _card({required Widget child}) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: VaiaColors.surface,
           borderRadius: BorderRadius.circular(VaiaRadius.lg),

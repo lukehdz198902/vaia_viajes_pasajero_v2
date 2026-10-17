@@ -7,14 +7,29 @@ import '../../providers/profile_provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../services/directions_service.dart';
 import '../../services/marker_icons.dart';
+import '../../services/api_service.dart';
+import '../../models/favorito_model.dart';
+import '../../config/favorito_categorias.dart';
 import 'service_status_screen.dart';
 import 'place_search_screen.dart';
 
 class ServiceRequestScreen extends StatefulWidget {
   final double currentLat;
   final double currentLng;
+  final String? destino;
+  final double? destinoLat;
+  final double? destinoLng;
+  final List<Map<String, dynamic>> paradas;
 
-  const ServiceRequestScreen({super.key, required this.currentLat, required this.currentLng});
+  const ServiceRequestScreen({
+    super.key,
+    required this.currentLat,
+    required this.currentLng,
+    this.destino,
+    this.destinoLat,
+    this.destinoLng,
+    this.paradas = const [],
+  });
 
   @override
   State<ServiceRequestScreen> createState() => _ServiceRequestScreenState();
@@ -28,7 +43,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final _promoCodeController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  String _selectedTripType = 'URBANO';
+  String _selectedTripType = 'Basico';
   int _selectedPaymentType = 1;
   bool _isLoading = false;
   bool _validatingPromo = false;
@@ -44,29 +59,45 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   final List<Map<String, dynamic>> _paradas = [];
   final Set<Polyline> _polylines = {};
 
-  final List<String> _tripTypes = ['URBANO', 'INTERURBANO', 'AEROPUERTO'];
+  final List<String> _tripTypes = ['Basico', 'Plus', 'VIP'];
 
-  static const Map<int, String> paymentTypes = {
-    1: 'Efectivo',
-    2: 'Tarjeta de Credito',
-    3: 'Tarjeta de Debito',
-    4: 'PayPal',
-    5: 'Mercado Pago',
-    6: 'Transferencia',
-  };
+  // Metodos habilitados por el administrador. Efectivo siempre disponible;
+  // PayPal y Mercado Pago se agregan solo si estan activos en la compania.
+  Map<int, String> _metodosPago = {1: 'Efectivo'};
 
   @override
   void initState() {
     super.initState();
     _originLatLng = LatLng(widget.currentLat, widget.currentLng);
     _originController.text = 'Mi ubicacion actual';
+    if (widget.destinoLat != null && widget.destinoLng != null) {
+      _destinationLatLng = LatLng(widget.destinoLat!, widget.destinoLng!);
+      _destinationController.text = (widget.destino != null && widget.destino!.trim().isNotEmpty)
+          ? widget.destino!
+          : 'Destino';
+    }
+    if (widget.paradas.isNotEmpty) {
+      for (var i = 0; i < widget.paradas.length; i++) {
+        final p = Map<String, dynamic>.from(widget.paradas[i]);
+        p['id'] = p['id'] ?? 'ini-$i-${DateTime.now().microsecondsSinceEpoch}';
+        _paradas.add(p);
+      }
+    }
     _updateMapMarkers();
+    if (_destinationLatLng != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _destinationLatLng != null && _originLatLng != null) {
+          _calculateEstimate();
+        }
+      });
+    }
     MarkerIcons.cargar().then((_) { if (mounted) _updateMapMarkers(); });
     // Tarifas vigentes del servidor (costo minimo, por km y por minuto)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final idCompania = context.read<AuthProvider>().idCompania;
       context.read<ProfileProvider>().cargarTarifas(idCompania > 0 ? idCompania : 1);
+      _cargarMetodosPago();
     });
   }
 
@@ -221,19 +252,80 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     }
 
     // Respaldo local mientras llega la configuracion del servidor
-    switch (type) {
-      case 'URBANO': return 8.50 + km * 5.50;
-      case 'INTERURBANO': return 15.00 + km * 7.50;
-      case 'AEROPUERTO': return 25.00 + km * 9.50;
-      default: return 8.50 + km * 5.50;
-    }
+    return 8.50 + km * 5.50 + minutes * 1.20;
   }
 
-  double _factorTipo(String type) {
-    switch (type) {
-      case 'INTERURBANO': return 1.25;
-      case 'AEROPUERTO': return 1.50;
-      default: return 1.00;
+  // Los tipos de viaje (Basico/Plus/VIP) no cambian la tarifa; solo determinan
+  // que gama de unidad puede tomar el servicio.
+  double _factorTipo(String type) => 1.00;
+
+  /// Carga los metodos de pago habilitados por el administrador y el metodo
+  /// predeterminado del pasajero.
+  Future<void> _cargarMetodosPago() async {
+    try {
+      final auth = context.read<AuthProvider>();
+      final api = context.read<ApiService>();
+      final cfg = await api.configuracionPago();
+      final pref = await api.obtenerPreferenciaPago(auth.userId);
+      final m = <int, String>{1: 'Efectivo'};
+      bool act(dynamic v) => v == true || v == 1 || v.toString() == '1' || v.toString() == 'true';
+      if (cfg.success && cfg.list != null && cfg.list!.isNotEmpty) {
+        final c = Map<String, dynamic>.from(cfg.list!.first as Map);
+        if (act(c['paypalactivo'])) m[4] = 'PayPal';
+        if (act(c['mercadopagoactivo'])) m[5] = 'Mercado Pago';
+      }
+      int prefId = 1;
+      if (pref.success && pref.list != null && pref.list!.isNotEmpty) {
+        final p = Map<String, dynamic>.from(pref.list!.first as Map);
+        prefId = int.tryParse(p['idtipopagopreferido']?.toString() ?? '0') ?? 0;
+      }
+      if (!m.containsKey(prefId)) prefId = m.keys.first;
+      if (mounted) setState(() { _metodosPago = m; _selectedPaymentType = prefId; });
+    } catch (_) {}
+  }
+
+  /// Verifica que haya unidades de la gama seleccionada cerca. Si no hay,
+  /// sugiere cambiar a otro tipo de viaje disponible.
+  Future<bool> _verificarGamaDisponible() async {
+    try {
+      final api = context.read<ApiService>();
+      final resp = await api.gamasDisponibles(_originLatLng!.latitude.toString(), _originLatLng!.longitude.toString());
+      if (!resp.success || resp.list == null || resp.list!.isEmpty) return true;
+      final lista = resp.list!.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      int disp(String nombre) {
+        for (final g in lista) {
+          if (g['nombre']?.toString().toLowerCase() == nombre.toLowerCase()) {
+            return int.tryParse(g['conductores']?.toString() ?? '0') ?? 0;
+          }
+        }
+        return 0;
+      }
+      if (disp(_selectedTripType) > 0) return true;
+      final alternativas = lista.where((g) => (int.tryParse(g['conductores']?.toString() ?? '0') ?? 0) > 0).toList();
+      if (alternativas.isEmpty) return true;
+      if (!mounted) return true;
+      final elegido = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+          title: const Text('Sin unidades de este tipo'),
+          content: Text('No hay unidades de tipo "$_selectedTripType" cerca de ti. Puedes cambiar a otro tipo de viaje:'),
+          actions: [
+            ...alternativas.map((g) => TextButton(
+                  onPressed: () => Navigator.pop(ctx, g['nombre'].toString()),
+                  child: Text('${g['nombre']} (${g['conductores']})'),
+                )),
+            TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancelar')),
+          ],
+        ),
+      );
+      if (elegido != null && mounted) {
+        setState(() => _selectedTripType = elegido);
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return true;
     }
   }
 
@@ -350,6 +442,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     if (result == null) return;
     setState(() {
       _paradas.add({
+        'id': DateTime.now().microsecondsSinceEpoch.toString(),
         'direccion': result['address'] ?? 'Parada ${_paradas.length + 1}',
         'lat': (result['lat'] as double).toString(),
         'lng': (result['lng'] as double).toString(),
@@ -364,24 +457,20 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     _updateMapMarkers();
   }
 
-  void _onFavoriteSelected(String? value) {
-    if (value == null) return;
-    final profile = context.read<ProfileProvider>();
-    final fav = profile.favoritos.where((f) => f.nombre == value).firstOrNull;
-    if (fav != null) {
-      if (_isSettingOrigin) {
-        setState(() {
-          _originLatLng = LatLng(double.parse(fav.lat), double.parse(fav.lng));
-          _originController.text = fav.direccion ?? fav.nombre;
-        });
-      } else {
-        setState(() {
-          _destinationLatLng = LatLng(double.parse(fav.lat), double.parse(fav.lng));
-          _destinationController.text = fav.direccion ?? fav.nombre;
-        });
-      }
-      _updateMapMarkers();
+  void _onFavoriteSelected(FavoritoModel fav) {
+    if (_isSettingOrigin) {
+      setState(() {
+        _originLatLng = LatLng(double.parse(fav.lat), double.parse(fav.lng));
+        _originController.text = fav.direccion ?? fav.nombre;
+      });
+    } else {
+      setState(() {
+        _destinationLatLng = LatLng(double.parse(fav.lat), double.parse(fav.lng));
+        _destinationController.text = fav.direccion ?? fav.nombre;
+      });
     }
+    _updateMapMarkers();
+    if (_destinationLatLng != null && _originLatLng != null) _calculateEstimate();
   }
 
   Future<void> _solicitarServicio() async {
@@ -407,6 +496,12 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     if (ride.conductoresDisponibles.isEmpty) {
       setState(() => _isLoading = false);
       await _sinConductores();
+      return;
+    }
+
+    // Si no hay unidades de la gama seleccionada, sugiere cambiar de tipo.
+    if (!await _verificarGamaDisponible()) {
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
 
@@ -468,8 +563,16 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   Widget build(BuildContext context) {
     final profile = context.watch<ProfileProvider>();
     final finalCost = _estimatedCost - _discount;
+    final tieneConfig = _destinationController.text.trim().isNotEmpty || _paradas.isNotEmpty;
 
-    return Scaffold(
+    return PopScope(
+      canPop: !tieneConfig,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final salir = await _confirmarSalidaServicio();
+        if (salir == true && mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
       backgroundColor: AppTheme.bgLight,
       appBar: AppBar(
         title: const Text('Solicitar Servicio'),
@@ -534,174 +637,83 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField(
-                      controller: _originController,
-                      decoration: InputDecoration(
-                        prefixIcon: Icon(Icons.circle, color: AppTheme.primary),
-                        labelText: 'Origen',
-                        hintText: 'Donde te recogemos?',
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.search, size: 20),
-                              tooltip: 'Buscar direccion',
-                              onPressed: () => _openPlaceSearch(isOrigin: true),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.my_location, size: 18),
-                              tooltip: 'Mi ubicacion',
-                              onPressed: _resetOriginToCurrent,
-                            ),
-                          ],
-                        ),
-                      ),
-                      readOnly: true,
-                      onTap: () => _openPlaceSearch(isOrigin: true),
+                    // ─── Ruta: linea de tiempo vertical animada ───
+                    _TimelineRuta(
+                      origen: _originController.text,
+                      destino: _destinationController.text,
+                      paradas: _paradas,
+                      onOrigen: () => _openPlaceSearch(isOrigin: true),
+                      onDestino: () => _openPlaceSearch(isOrigin: false),
+                      onMiUbicacion: _resetOriginToCurrent,
+                      onLimpiarDestino: () {
+                        setState(() {
+                          _destinationController.clear();
+                          _destinationLatLng = null;
+                          _estimatedDistance = 0;
+                          _estimatedCost = 0;
+                          _discount = 0;
+                          _promoMessage = null;
+                          _promoValid = false;
+                        });
+                        _updateMapMarkers();
+                      },
+                      onAgregarParada: _agregarParada,
+                      onEliminarParada: _eliminarParada,
+                      onReorderParadas: (nuevas) {
+                        setState(() {
+                          _paradas
+                            ..clear()
+                            ..addAll(nuevas);
+                        });
+                        _updateMapMarkers();
+                      },
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _destinationController,
-                      decoration: InputDecoration(
-                        prefixIcon: Icon(Icons.location_on, color: AppTheme.danger),
-                        labelText: 'Destino',
-                        hintText: 'A donde vamos?',
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_destinationController.text.isNotEmpty)
-                              IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  setState(() {
-                                    _destinationController.clear();
-                                    _destinationLatLng = null;
-                                    _estimatedDistance = 0;
-                                    _estimatedCost = 0;
-                                    _discount = 0;
-                                    _promoMessage = null;
-                                    _promoValid = false;
-                                  });
-                                  _updateMapMarkers();
-                                },
-                              ),
-                            IconButton(
-                              icon: const Icon(Icons.search, size: 20),
-                              tooltip: 'Buscar destino',
-                              onPressed: () => _openPlaceSearch(isOrigin: false),
-                            ),
-                          ],
-                        ),
-                      ),
-                      readOnly: true,
-                      onTap: () => _openPlaceSearch(isOrigin: false),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Seleccione un destino' : null,
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _agregarParada,
-                            icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-                            label: Text(_paradas.isEmpty ? 'Agregar parada intermedia' : 'Agregar otra parada'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_paradas.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.alt_route, size: 16, color: Colors.orange.shade800),
-                                const SizedBox(width: 6),
-                                Text('${_paradas.length} parada(s) intermedia(s)',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade900)),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            ..._paradas.asMap().entries.map((e) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 11,
-                                    backgroundColor: Colors.orange.shade700,
-                                    child: Text('${e.key + 1}', style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(e.value['direccion']?.toString() ?? '',
-                                        style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.close, size: 16),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () => _eliminarParada(e.key),
-                                  ),
-                                ],
-                              ),
-                            )),
-                          ],
-                        ),
-                      ),
-                    ],
                     if (profile.favoritos.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.star_outline),
-                          labelText: 'Favoritos',
-                        ),
-                        items: profile.favoritos
-                            .map((f) => DropdownMenuItem(value: f.nombre, child: Text(f.nombre, overflow: TextOverflow.ellipsis)))
-                            .toList(),
-                        onChanged: _onFavoriteSelected,
+                      const SizedBox(height: 14),
+                      Row(children: [
+                        const Icon(Icons.star_rounded, size: 16, color: AppTheme.accent),
+                        const SizedBox(width: 6),
+                        Text('Favoritos',
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppTheme.textDark.withValues(alpha: 0.8))),
+                      ]),
+                      const SizedBox(height: 8),
+                      _FavoritosRapidos(
+                        favoritos: profile.favoritos,
+                        onSelect: _onFavoriteSelected,
                       ),
                     ],
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedTripType,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.route_outlined),
-                        labelText: 'Tipo de viaje',
-                      ),
-                      items: _tripTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: (v) {
-                        if (v != null) {
-                          setState(() => _selectedTripType = v);
-                          if (_destinationLatLng != null) _calculateEstimate();
-                        }
+                    Row(children: [
+                      const Icon(Icons.route_outlined, size: 16, color: AppTheme.primary),
+                      const SizedBox(width: 6),
+                      Text('Tipo de viaje',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppTheme.textDark.withValues(alpha: 0.8))),
+                    ]),
+                    const SizedBox(height: 8),
+                    _TipoViajeSelector(
+                      tipos: _tripTypes,
+                      seleccionado: _selectedTripType,
+                      onSelect: (t) {
+                        setState(() => _selectedTripType = t);
+                        if (_destinationLatLng != null) _calculateEstimate();
                       },
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<int>(
-                      initialValue: _selectedPaymentType,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.payments_outlined),
-                        labelText: 'Metodo de pago',
-                      ),
-                      items: paymentTypes.entries
-                          .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setState(() => _selectedPaymentType = v);
-                      },
+                    Row(children: [
+                      const Icon(Icons.account_balance_wallet_outlined, size: 16, color: AppTheme.primary),
+                      const SizedBox(width: 6),
+                      Text('Metodo de pago',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppTheme.textDark.withValues(alpha: 0.8))),
+                    ]),
+                    const SizedBox(height: 8),
+                    _MetodosPagoSelector(
+                      metodos: _metodosPago,
+                      seleccionado: _selectedPaymentType,
+                      onSelect: (id) => setState(() => _selectedPaymentType = id),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -743,9 +755,9 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                         ),
                       ),
                     if (_estimatedDistance > 0) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(14),
@@ -790,26 +802,18 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                           Icon(Icons.info_outline, size: 14, color: AppTheme.textLight),
                           const SizedBox(width: 4),
                           Text(
-                            'Pago: ${paymentTypes[_selectedPaymentType] ?? "Efectivo"}',
+                            'Pago: ${_metodosPago[_selectedPaymentType] ?? "Efectivo"}',
                             style: TextStyle(fontSize: 12, color: AppTheme.textLight),
                           ),
                         ],
                       ),
                     ],
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _solicitarServicio,
-                        child: _isLoading
-                            ? const SizedBox(width: 22, height: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Text(
-                                'Solicitar Servicio${finalCost > 0 ? " - \$${finalCost.toStringAsFixed(2)}" : ""}',
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                      ),
+                    const SizedBox(height: 12),
+                    _SlideToConfirm(
+                      enabled: !_isLoading,
+                      loading: _isLoading,
+                      label: 'Desliza para solicitar${finalCost > 0 ? "  \$${finalCost.toStringAsFixed(2)}" : ""}',
+                      onConfirm: _solicitarServicio,
                     ),
                   ],
                 ),
@@ -817,6 +821,30 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
             ),
           ],
         ),
+      ),
+      ),
+    );
+  }
+
+  Future<bool?> _confirmarSalidaServicio() {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.warning_amber_rounded, color: AppTheme.danger, size: 38),
+        title: const Text('Descartar configuracion'),
+        content: const Text(
+          'Si sales ahora perderas lo que configuraste del servicio (origen, destino, paradas, tipo de viaje y metodo de pago).',
+          style: TextStyle(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Continuar aqui')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.danger),
+            child: const Text('Salir'),
+          ),
+        ],
       ),
     );
   }
@@ -834,5 +862,566 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         )),
       ],
     );
+  }
+}
+
+/// Linea de tiempo vertical y animada de la ruta. Se muestra el destino
+/// arriba, las paradas al centro y el origen abajo, de modo que el recorrido
+/// "avanza hacia lo alto". Un punto luminoso viaja por el riel animando la ruta.
+class _TimelineRuta extends StatefulWidget {
+  final String origen;
+  final String destino;
+  final List<Map<String, dynamic>> paradas;
+  final VoidCallback onOrigen;
+  final VoidCallback onDestino;
+  final VoidCallback onMiUbicacion;
+  final VoidCallback onLimpiarDestino;
+  final VoidCallback onAgregarParada;
+  final void Function(int) onEliminarParada;
+  final void Function(List<Map<String, dynamic>>) onReorderParadas;
+  const _TimelineRuta({
+    required this.origen,
+    required this.destino,
+    required this.paradas,
+    required this.onOrigen,
+    required this.onDestino,
+    required this.onMiUbicacion,
+    required this.onLimpiarDestino,
+    required this.onAgregarParada,
+    required this.onEliminarParada,
+    required this.onReorderParadas,
+  });
+
+  @override
+  State<_TimelineRuta> createState() => _TimelineRutaState();
+}
+
+class _TimelineRutaState extends State<_TimelineRuta> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final destinoNode = _nodo(
+      icono: Icons.flag_rounded,
+      color: AppTheme.danger,
+      titulo: 'Destino',
+      valor: widget.destino.isEmpty ? 'A donde vamos?' : widget.destino,
+      placeholder: widget.destino.isEmpty,
+      onTap: widget.onDestino,
+      trailing: widget.destino.isEmpty
+          ? null
+          : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: widget.onLimpiarDestino),
+    );
+    final origenNode = _nodo(
+      icono: Icons.my_location_rounded,
+      color: AppTheme.primary,
+      titulo: 'Origen',
+      valor: widget.origen.isEmpty ? 'Donde te recogemos?' : widget.origen,
+      onTap: widget.onOrigen,
+      trailing: IconButton(icon: const Icon(Icons.my_location, size: 18), onPressed: widget.onMiUbicacion),
+    );
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              Positioned(left: 15, top: 12, bottom: 12, width: 4, child: _riel()),
+              Column(children: [
+                destinoNode,
+                if (widget.paradas.isNotEmpty) _listaParadas(),
+                origenNode,
+              ]),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: widget.onAgregarParada,
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: Text(widget.paradas.isEmpty ? 'Agregar parada' : 'Agregar otra parada'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 30),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _riel() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              gradient: const LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [AppTheme.primary, AppTheme.accent, AppTheme.danger],
+              ),
+            ),
+          ),
+        ),
+        AnimatedBuilder(
+          animation: _c,
+          builder: (_, __) => Align(
+            alignment: Alignment(0, 1 - 2 * _c.value),
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.primary, width: 2),
+                boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.7), blurRadius: 8, spreadRadius: 1)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _listaParadas() {
+    final disp = widget.paradas.reversed.toList();
+    return ReorderableListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      onReorder: (oldP, newP) {
+        if (newP > oldP) newP--;
+        final it = disp.removeAt(oldP);
+        disp.insert(newP, it);
+        widget.onReorderParadas(disp.reversed.toList());
+      },
+      children: [
+        for (var i = 0; i < disp.length; i++) _paradaNode(disp[i], i),
+      ],
+    );
+  }
+
+  Widget _paradaNode(Map<String, dynamic> p, int i) {
+    final numero = widget.paradas.length - i;
+    return _nodo(
+      key: ValueKey(p['id'] ?? 'parada_$i'),
+      icono: Icons.circle,
+      color: AppTheme.accent,
+      titulo: 'Parada $numero',
+      valor: (p['direccion'] ?? '').toString(),
+      onTap: null,
+      numero: numero,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ReorderableDragStartListener(
+            index: i,
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.drag_indicator_rounded, size: 18, color: AppTheme.textMuted),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18),
+            onPressed: () => widget.onEliminarParada(widget.paradas.length - 1 - i),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _nodo({
+    Key? key,
+    required IconData icono,
+    required Color color,
+    required String titulo,
+    required String valor,
+    required VoidCallback? onTap,
+    required Widget? trailing,
+    bool placeholder = false,
+    int? numero,
+  }) {
+    return InkWell(
+      key: key,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 34,
+              child: Center(
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: color, width: 2),
+                  ),
+                  child: Center(
+                    child: numero != null
+                        ? Text('$numero', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color))
+                        : Icon(icono, size: 12, color: color),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(titulo, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color, letterSpacing: 0.3)),
+                  const SizedBox(height: 1),
+                  Text(
+                    valor,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: placeholder ? AppTheme.textMuted : AppTheme.textDark,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (trailing != null) trailing,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Carrusel horizontal de lugares favoritos con su icono de categoria.
+class _FavoritosRapidos extends StatelessWidget {
+  final List<FavoritoModel> favoritos;
+  final void Function(FavoritoModel) onSelect;
+  const _FavoritosRapidos({required this.favoritos, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 96,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: favoritos.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final f = favoritos[i];
+          final cat = categoriaDe(f.categoria);
+          return InkWell(
+            onTap: () => onSelect(f),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: 168,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cat.color.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cat.color.withValues(alpha: 0.35)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: cat.color.withValues(alpha: 0.18), shape: BoxShape.circle),
+                      child: Icon(cat.icono, size: 14, color: cat.color),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(f.nombre,
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ]),
+                  const SizedBox(height: 6),
+                  Text(f.direccion ?? 'Sin direccion',
+                      style: TextStyle(fontSize: 11, color: AppTheme.textMedium),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Selector de metodo de pago en tarjetas con icono y color de cada marca.
+class _MetodosPagoSelector extends StatelessWidget {
+  final Map<int, String> metodos;
+  final int seleccionado;
+  final void Function(int) onSelect;
+  const _MetodosPagoSelector({required this.metodos, required this.seleccionado, required this.onSelect});
+
+  (IconData, Color) _info(String nombre) {
+    final n = nombre.toLowerCase();
+    if (n.contains('paypal')) return (Icons.account_balance_wallet_rounded, const Color(0xFF003087));
+    if (n.contains('mercado')) return (Icons.payments_rounded, const Color(0xFF009EE3));
+    if (n.contains('efectivo')) return (Icons.attach_money_rounded, const Color(0xFF16A34A));
+    return (Icons.credit_card_rounded, AppTheme.primary);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = metodos.entries.toList();
+    return Row(
+      children: [
+        for (var i = 0; i < entries.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(child: _card(entries[i].key, entries[i].value)),
+        ],
+      ],
+    );
+  }
+
+  Widget _card(int id, String nombre) {
+    final (icon, color) = _info(nombre);
+    final sel = id == seleccionado;
+    return InkWell(
+      onTap: () => onSelect(id),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: sel ? color.withValues(alpha: 0.10) : AppTheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: sel ? color : AppTheme.border, width: sel ? 1.6 : 1),
+          boxShadow: sel ? [BoxShadow(color: color.withValues(alpha: 0.18), blurRadius: 10, offset: const Offset(0, 3))] : null,
+        ),
+        child: Column(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: color.withValues(alpha: 0.14), shape: BoxShape.circle),
+                  child: Icon(icon, size: 18, color: color),
+                ),
+                if (sel)
+                  Positioned(
+                    right: -3,
+                    top: -3,
+                    child: Container(
+                      padding: const EdgeInsets.all(1),
+                      decoration: const BoxDecoration(color: Color(0xFF16A34A), shape: BoxShape.circle),
+                      child: const Icon(Icons.check, size: 11, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(nombre,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: sel ? color : AppTheme.textDark),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Selector de tipo de viaje (Basico / Plus / VIP) en tarjetas.
+class _TipoViajeSelector extends StatelessWidget {
+  final List<String> tipos;
+  final String seleccionado;
+  final void Function(String) onSelect;
+  const _TipoViajeSelector({required this.tipos, required this.seleccionado, required this.onSelect});
+
+  (IconData, Color) _info(String t) {
+    switch (t.toLowerCase()) {
+      case 'plus':
+        return (Icons.workspace_premium_rounded, AppTheme.accent);
+      case 'vip':
+        return (Icons.star_rounded, const Color(0xFF8B5CF6));
+      default:
+        return (Icons.directions_car_filled_rounded, AppTheme.primary);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < tipos.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(child: _card(tipos[i])),
+        ],
+      ],
+    );
+  }
+
+  Widget _card(String tipo) {
+    final (icon, color) = _info(tipo);
+    final sel = tipo == seleccionado;
+    return InkWell(
+      onTap: () => onSelect(tipo),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: sel ? color.withValues(alpha: 0.10) : AppTheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: sel ? color : AppTheme.border, width: sel ? 1.6 : 1),
+          boxShadow: sel ? [BoxShadow(color: color.withValues(alpha: 0.18), blurRadius: 10, offset: const Offset(0, 3))] : null,
+        ),
+        child: Column(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: color.withValues(alpha: 0.14), shape: BoxShape.circle),
+                  child: Icon(icon, size: 18, color: color),
+                ),
+                if (sel)
+                  Positioned(
+                    right: -3,
+                    top: -3,
+                    child: Container(
+                      padding: const EdgeInsets.all(1),
+                      decoration: const BoxDecoration(color: Color(0xFF16A34A), shape: BoxShape.circle),
+                      child: const Icon(Icons.check, size: 11, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(tipo,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: sel ? color : AppTheme.textDark),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Boton deslizable para confirmar la solicitud (evita solicitudes por error).
+class _SlideToConfirm extends StatefulWidget {
+  final bool enabled;
+  final bool loading;
+  final String label;
+  final VoidCallback onConfirm;
+  const _SlideToConfirm({required this.enabled, required this.loading, required this.label, required this.onConfirm});
+
+  @override
+  State<_SlideToConfirm> createState() => _SlideToConfirmState();
+}
+
+class _SlideToConfirmState extends State<_SlideToConfirm> {
+  double _drag = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    const thumb = 50.0;
+    final habilitado = widget.enabled && !widget.loading;
+    return LayoutBuilder(builder: (context, c) {
+      final maxDrag = (c.maxWidth - thumb - 8).clamp(1.0, double.infinity);
+      final progreso = _drag * maxDrag;
+      return Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: habilitado ? AppTheme.primary : AppTheme.textMuted,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: habilitado
+              ? [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.30), blurRadius: 14, offset: const Offset(0, 5))]
+              : null,
+        ),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 60),
+                    width: thumb + 8 + progreso,
+                    height: double.infinity,
+                    color: Colors.white.withValues(alpha: 0.16),
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: widget.loading
+                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(
+                      widget.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white.withValues(alpha: _drag > 0.05 ? 0.7 : 1),
+                      ),
+                    ),
+            ),
+            Positioned(
+              left: 4 + progreso,
+              top: 4,
+              child: GestureDetector(
+                onHorizontalDragUpdate: habilitado
+                    ? (d) => setState(() => _drag = (_drag + d.delta.dx / maxDrag).clamp(0.0, 1.0))
+                    : null,
+                onHorizontalDragEnd: (_) {
+                  if (_drag > 0.85 && habilitado) {
+                    widget.onConfirm();
+                  }
+                  setState(() => _drag = 0);
+                },
+                child: Container(
+                  width: thumb,
+                  height: thumb,
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: Icon(
+                    widget.loading ? Icons.hourglass_top_rounded : Icons.arrow_forward_rounded,
+                    color: AppTheme.primary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

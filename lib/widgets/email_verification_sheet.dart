@@ -124,7 +124,7 @@ class _EmailVerificationSheetState extends State<EmailVerificationSheet> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _correoChip(correo),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       if (!_codigoEnviado) ...[
                         _paso(numero: '1', titulo: 'Envia el codigo', detalle: 'Te enviaremos un codigo de 6 digitos al correo indicado.'),
                         const SizedBox(height: 18),
@@ -140,7 +140,7 @@ class _EmailVerificationSheetState extends State<EmailVerificationSheet> {
                         ),
                       ] else ...[
                         _paso(numero: '2', titulo: 'Ingresa el codigo', detalle: 'Escribe el codigo de 6 digitos que llego a tu correo.'),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
                         TextField(
                           controller: _codigoCtrl,
                           autofocus: true,
@@ -216,7 +216,7 @@ class _EmailVerificationSheetState extends State<EmailVerificationSheet> {
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(3)),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           Row(
             children: [
               Container(

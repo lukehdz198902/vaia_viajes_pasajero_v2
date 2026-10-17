@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../config/theme.dart';
+import '../../services/foto_util.dart';
 import '../../widgets/email_verification_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -67,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final recibida = d(r?['calificacionrecibida']);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -325,14 +326,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
             _resumenCard(context.watch<ProfileProvider>().resumenGeneral),
             const SizedBox(height: 12),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(14),
                 child: Column(
                   children: [
                     Stack(
@@ -342,10 +343,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           backgroundColor: AppTheme.bgLight,
                           backgroundImage: _fotoBase64 != null
                               ? MemoryImage(base64Decode(_fotoBase64!))
-                              : (user?.fotoperfil != null && user!.fotoperfil!.isNotEmpty
-                                  ? NetworkImage(user.fotoperfil!)
-                                  : null),
-                          child: (_fotoBase64 == null && (user?.fotoperfil == null || user!.fotoperfil!.isEmpty))
+                              : providerFoto(user?.fotoperfil),
+                          child: (_fotoBase64 == null && providerFoto(user?.fotoperfil) == null)
                               ? const Icon(Icons.person, size: 44, color: AppTheme.textLight)
                               : null,
                         ),
@@ -410,10 +409,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -425,7 +424,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: AppTheme.textDark,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     _buildField('Nombre', _nombreCtrl),
                     const SizedBox(height: 12),
                     _buildField('Apellido paterno', _appaternoCtrl),
@@ -435,7 +434,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildDateField(),
                     const SizedBox(height: 12),
                     _buildGeneroField(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -456,10 +455,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -491,7 +490,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     if (_showPasswordSection) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       _buildField('Contrasena actual', _passActualCtrl,
                           obscure: true),
                       const SizedBox(height: 12),
@@ -517,10 +516,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -552,7 +551,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     if (_showPhoneSection) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           SizedBox(
@@ -597,7 +596,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 14),
           ],
         ),
       ),

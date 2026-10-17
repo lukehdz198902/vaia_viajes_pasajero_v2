@@ -169,7 +169,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   'Unete a Vaia Viajes y empieza a moverte',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 _sectionLabel(context, 'Informacion personal', Icons.person_outline_rounded),
                 const SizedBox(height: 10),
                 Row(
@@ -247,7 +247,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 _sectionLabel(context, 'Datos de la cuenta', Icons.lock_outline_rounded),
                 const SizedBox(height: 10),
                 VaiaTextField(
@@ -299,14 +299,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
                 VaiaPrimaryButton(
                   label: 'Crear cuenta',
                   icon: Icons.arrow_forward_rounded,
                   loading: _isLoading,
                   onPressed: _isLoading ? null : _register,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -317,7 +317,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
               ],
             ),
           ),

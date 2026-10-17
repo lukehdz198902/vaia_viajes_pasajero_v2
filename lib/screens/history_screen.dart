@@ -1,9 +1,10 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../models/ride_model.dart';
 import '../../config/theme.dart';
-import '../../services/marker_icons.dart';
+import '../../widgets/ruta_timeline.dart';
 
 /// Historial de viajes del pasajero con filtro por mes y año (por defecto el
 /// mes actual) y resumen del periodo.
@@ -121,7 +122,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     String money(dynamic v) => '\$${(double.tryParse(v?.toString() ?? '') ?? 0).toStringAsFixed(2)}';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: VaiaColors.primaryGradient,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -185,7 +186,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   CircleAvatar(
                     radius: 22,
                     backgroundColor: VaiaColors.primaryGhost,
-                    backgroundImage: (cond?.fotoperfil != null && cond!.fotoperfil!.isNotEmpty) ? NetworkImage(cond.fotoperfil!) : null,
+                    backgroundImage: providerFoto(cond?.fotoperfil),
                     child: (cond?.fotoperfil == null || cond!.fotoperfil!.isEmpty)
                         ? const Icon(Icons.person_rounded, color: VaiaColors.primary, size: 22)
                         : null,
@@ -218,12 +219,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              _ruta(const MarkerIcon(origin: true, size: 14), v.direccionOrigen),
-              Padding(
-                padding: const EdgeInsets.only(left: 7),
-                child: Container(width: 2, height: 12, color: VaiaColors.border),
-              ),
-              _ruta(const MarkerIcon(origin: false, size: 14), v.direccionDestino),
+              RutaTimeline(origen: v.direccionOrigen, destino: v.direccionDestino),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -245,17 +241,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (e.contains('cancel')) return VaiaColors.danger;
     if (e.contains('camino')) return VaiaColors.primary;
     return VaiaColors.textMuted;
-  }
-
-  Widget _ruta(Widget icon, String texto) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        icon,
-        const SizedBox(width: 8),
-        Expanded(child: Text(texto.isEmpty ? '-' : texto, style: const TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-      ],
-    );
   }
 
   Widget _chip(IconData icon, String texto) {

@@ -1,3 +1,4 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import '../../services/directions_service.dart';
 import '../../services/marker_icons.dart';
 import 'report_incident_screen.dart';
 import 'service_request_screen.dart';
+import '../../widgets/ruta_timeline.dart';
 
 /// Detalle completo de un servicio para el pasajero: mapa con la ruta y las
 /// paradas, datos del conductor, desglose de costos, conversacion y la
@@ -159,7 +161,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   color: VaiaColors.primary,
                   onRefresh: _loadDetail,
                   child: ListView(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     children: [
                       _mapa(),
                       const SizedBox(height: 12),
@@ -175,9 +177,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                       const SizedBox(height: 12),
                       if (_paradas.isNotEmpty) ...[_paradasCard(), const SizedBox(height: 12)],
                       _conversacion(),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       _acciones(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 14),
                     ],
                   ),
                 ),
@@ -186,7 +188,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   Widget _card({required Widget child}) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: VaiaColors.surface,
           borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -257,9 +259,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           children: [
             _titulo(Icons.route_rounded, 'Recorrido'),
             const SizedBox(height: 12),
-            _dirRow(const MarkerIcon(origin: true), 'Origen', _ride!.direccionOrigen),
-            Padding(padding: const EdgeInsets.only(left: 5), child: Container(width: 2, height: 16, color: VaiaColors.border)),
-            _dirRow(const MarkerIcon(origin: false), 'Destino', _ride!.direccionDestino),
+            RutaTimeline(
+              origen: _ride!.direccionOrigen,
+              destino: _ride!.direccionDestino,
+              paradas: _paradas.map((p) => p.direccion).toList(),
+            ),
           ],
         ),
       );
@@ -294,7 +298,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               CircleAvatar(
                 radius: 28,
                 backgroundColor: VaiaColors.primaryGhost,
-                backgroundImage: (c.fotoperfil != null && c.fotoperfil!.isNotEmpty) ? NetworkImage(c.fotoperfil!) : null,
+                backgroundImage: providerFoto(c.fotoperfil),
                 child: (c.fotoperfil == null || c.fotoperfil!.isEmpty) ? const Icon(Icons.person_rounded, color: VaiaColors.primary, size: 28) : null,
               ),
               const SizedBox(width: 12),
@@ -477,6 +481,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 builder: (_) => ServiceRequestScreen(
                   currentLat: double.tryParse(_ride!.latOrigen) ?? 0,
                   currentLng: double.tryParse(_ride!.lngOrigen) ?? 0,
+                  destino: _ride!.direccionDestino,
+                  destinoLat: double.tryParse(_ride!.latDestino),
+                  destinoLng: double.tryParse(_ride!.lngDestino),
+                  paradas: _paradas.map((p) => p.toJson()).toList(),
                 ),
               ));
             },

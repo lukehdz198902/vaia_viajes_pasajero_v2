@@ -1,3 +1,4 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -123,7 +124,7 @@ class _ChatScreenState extends State<ChatScreen> {
               radius: 18,
               backgroundColor: AppTheme.bgLight,
               backgroundImage: widget.conductorFoto != null
-                  ? NetworkImage(widget.conductorFoto!)
+                  ? providerFoto(widget.conductorFoto)
                   : null,
               child: widget.conductorFoto == null
                   ? const Icon(Icons.person, size: 18, color: AppTheme.textLight)
@@ -158,7 +159,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           children: [
                             Icon(Icons.chat_bubble_outline,
                                 size: 64, color: AppTheme.textLight),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 10),
                             const Text(
                               'Sin mensajes aun',
                               style: TextStyle(
@@ -180,7 +181,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       )
                     : ListView.builder(
                         controller: _scrollCtrl,
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
                         itemCount: chat.mensajes.length,
                         itemBuilder: (ctx, i) {
                           final msg = chat.mensajes[i];

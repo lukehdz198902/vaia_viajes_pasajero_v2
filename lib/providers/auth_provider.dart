@@ -362,10 +362,15 @@ class AuthProvider extends ChangeNotifier {
 
   /// Registra el token de notificaciones push (FCM) en el backend.
   Future<void> _registrarToken() async {
+    NotificationService.onToken = (t) async {
+      final u = _user;
+      if (u == null || t.isEmpty) return;
+      try { await _api.actualizarToken(u.id, t, so: AppInfo.sistemaOperativo); } catch (_) {}
+    };
     final t = NotificationService.token;
     if (t == null || t.isEmpty || _user == null) return;
     try {
-      await _api.actualizarToken(_user!.id, t);
+      await _api.actualizarToken(_user!.id, t, so: AppInfo.sistemaOperativo);
       Logger.i('Auth', 'Token FCM registrado');
     } catch (e) {
       Logger.w('Auth', 'No se pudo registrar el token FCM: $e');

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
 
 import '../../config/theme.dart';
@@ -81,7 +82,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.card_giftcard, size: 64, color: AppTheme.textLight),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
                         const Text(
                           'Sin promociones disponibles',
                           style: TextStyle(fontSize: 18, color: AppTheme.textMedium),
@@ -97,7 +98,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                 : RefreshIndicator(
                     onRefresh: () => profile.cargarPromociones(),
                     child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       itemCount: profile.promociones.length,
                       itemBuilder: (ctx, i) => _buildPromoCard(profile.promociones[i]),
                     ),
@@ -183,7 +184,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
           else
             _buildPlaceholderBanner(),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -211,23 +212,46 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Codigo copiado'), backgroundColor: AppTheme.primary),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.secondary,
-                      foregroundColor: AppTheme.textDark,
+                if ((promo.codigo ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
                     ),
-                    icon: const Icon(Icons.copy, size: 16),
-                    label: const Text('Usar Codigo'),
+                    child: Row(children: [
+                      const Icon(Icons.confirmation_number_outlined, size: 16, color: AppTheme.primary),
+                      const SizedBox(width: 8),
+                      Text('Codigo: ', style: const TextStyle(fontSize: 12.5, color: AppTheme.textMedium)),
+                      Expanded(
+                        child: Text(promo.codigo!.trim(),
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppTheme.textDark, letterSpacing: 1)),
+                      ),
+                    ]),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: promo.codigo!.trim()));
+                        _codigoCtrl.text = promo.codigo!.trim();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Codigo ${promo.codigo!.trim()} copiado'), backgroundColor: AppTheme.primary),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.secondary,
+                        foregroundColor: AppTheme.textDark,
+                      ),
+                      icon: const Icon(Icons.copy, size: 16),
+                      label: const Text('Usar codigo'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -265,7 +289,13 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
 
   Uint8List? _base64ToBytes(String base64) {
     try {
-      return base64Decode(base64);
+      var data = base64.trim();
+      if (data.isEmpty) return null;
+      final comma = data.indexOf(',');
+      if (comma >= 0) data = data.substring(comma + 1);
+      data = data.replaceAll(RegExp(r'\s'), '');
+      if (data.isEmpty) return null;
+      return base64Decode(data);
     } catch (e) {
       return null;
     }

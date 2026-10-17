@@ -100,12 +100,12 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              const SizedBox(height: 32),
+              const SizedBox(height: 18),
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: VaiaColors.primaryGhost,
                   borderRadius: BorderRadius.circular(20),
@@ -116,7 +116,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                   color: VaiaColors.primary,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Text(
                 widget.title ?? 'Verificacion',
                 style: Theme.of(context).textTheme.headlineMedium,
@@ -127,7 +127,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 18),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(6, (i) => SizedBox(
@@ -149,7 +149,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                   ),
                 )),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 16),
               VaiaPrimaryButton(
                 label: 'Verificar',
                 icon: Icons.check_rounded,

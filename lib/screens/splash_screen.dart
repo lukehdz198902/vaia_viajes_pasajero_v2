@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/logger.dart';
 import '../../services/storage_service.dart';
 import '../../services/biometric_service.dart';
+import '../../widgets/login_background.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
 import 'onboarding_screen.dart';
@@ -98,13 +99,14 @@ class _SplashScreenState extends State<SplashScreen>
       body: Stack(
         children: [
           _BubblesBackground(controller: _bubbleCtrl),
+          Positioned.fill(child: LoginBackground(accent: VaiaColors.primary, accent2: VaiaColors.accent)),
           SafeArea(
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset('assets/images/logo.png', width: 180, height: 180),
-                  const SizedBox(height: 20),
+                  Image.asset('assets/images/logo.png', width: 120, height: 120),
+                  const SizedBox(height: 12),
                   const Text(
                     'Vaia Viajes',
                     style: TextStyle(

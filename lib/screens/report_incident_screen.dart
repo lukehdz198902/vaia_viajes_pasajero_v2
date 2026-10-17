@@ -88,13 +88,13 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
         titleTextStyle: const TextStyle(color: AppTheme.textDark, fontSize: 18, fontWeight: FontWeight.w600),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -105,7 +105,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                     const SizedBox(height: 8),
                     if (_isLoadingTipos)
                       const Center(
-                        child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()),
+                        child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()),
                       )
                     else
                       DropdownButtonFormField<String>(
@@ -124,7 +124,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
             const SizedBox(height: 12),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -150,7 +150,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               const SizedBox(height: 12),
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
                       const Icon(Icons.info_outline, size: 18, color: AppTheme.textMedium),
@@ -164,7 +164,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               height: 52,

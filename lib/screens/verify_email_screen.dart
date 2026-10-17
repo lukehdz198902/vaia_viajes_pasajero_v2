@@ -127,20 +127,20 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: VaiaColors.primaryGhost,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Icon(Icons.mark_email_unread_rounded, size: 56, color: VaiaColors.primary),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Text('Verifica tu correo', style: Theme.of(context).textTheme.headlineMedium, textAlign: TextAlign.center),
               const SizedBox(height: 8),
               Text(
@@ -148,7 +148,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 14),
               if (!_codigoEnviado)
                 VaiaPrimaryButton(
                   label: 'Enviar codigo',
@@ -165,7 +165,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   keyboardType: TextInputType.number,
                   maxLength: 6,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 VaiaPrimaryButton(
                   label: 'Verificar correo',
                   icon: Icons.check_rounded,

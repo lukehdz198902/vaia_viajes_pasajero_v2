@@ -170,7 +170,7 @@ class RideProvider extends ChangeNotifier {
         'distanciaMetros': distanciaMetros,
         'idTipoPago': idTipoPago,
         'codigoPromocional': codigoPromocional,
-        'tipoviaje': tipoviaje ?? 'URBANO',
+        'tipoviaje': tipoviaje ?? 'Basico',
       });
       if (res.success && res.firstOrNull() is Map) {
         final data = res.firstOrNull() as Map<String, dynamic>;
