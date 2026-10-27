@@ -16,6 +16,8 @@ import 'providers/soporte_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/locale_provider.dart';
 import 'services/app_info.dart';
+import 'services/connectivity_service.dart';
+import 'widgets/offline_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +43,7 @@ class VaiaViajesApp extends StatelessWidget {
         Provider<StorageService>.value(value: storage),
         Provider<ApiService>.value(value: api),
         Provider<SignalRService>.value(value: signalr),
+        ChangeNotifierProvider(create: (_) => ConnectivityService()..start()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()..cargar()),
         ChangeNotifierProvider(create: (_) => AuthProvider(api, storage, signalr)),
@@ -64,6 +67,13 @@ class VaiaViajesApp extends StatelessWidget {
       child: Consumer2<ThemeProvider, LocaleProvider>(
         builder: (_, themeProv, localeProv, _) {
           return MaterialApp(
+            builder: (context, child) {
+              final online = context.watch<ConnectivityService>().online;
+              return Column(children: [
+                if (!online) const OfflineBanner(),
+                Expanded(child: child ?? const SizedBox()),
+              ]);
+            },
             title: 'Vaia Viajes',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,

@@ -531,9 +531,9 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisCount: 4,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 10,
-      childAspectRatio: 0.78,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 8,
+      childAspectRatio: 0.80,
       children: items.map((it) {
         final (icon, label, color, onTap) = it;
         return InkWell(
@@ -543,13 +543,25 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 52, height: 52,
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
-                child: Icon(icon, color: color, size: 24),
+                width: 48, height: 48,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
+                child: Icon(icon, color: color, size: 23),
               ),
-              const SizedBox(height: 6),
-              Text(label, textAlign: TextAlign.center, maxLines: 2,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary)),
+              const SizedBox(height: 5),
+              SizedBox(
+                width: double.infinity,
+                height: 18,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary),
+                  ),
+                ),
+              ),
             ],
           ),
         );

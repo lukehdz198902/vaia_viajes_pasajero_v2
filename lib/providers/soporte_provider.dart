@@ -4,6 +4,7 @@ import '../models/soporte_model.dart';
 import '../services/api_service.dart';
 import '../services/signalr_service.dart';
 import '../services/logger.dart';
+import '../services/sound_service.dart';
 import 'auth_provider.dart';
 
 class SoporteProvider extends ChangeNotifier {
@@ -36,8 +37,9 @@ class SoporteProvider extends ChangeNotifier {
     _subSoporte = _signalr.soporteEventos.listen((event) {
       if (event.tipo == 'NuevoMensajeSoporte') {
         final idSol = _toInt(event.data['idSolicitud']);
+        final emisor = event.data['emisor']?.toString() ?? '';
+        if (emisor == 'soporte') SoundService.mensajeSoporte();
         if (idSol == _solicitudActiva?.id) {
-          final emisor = event.data['emisor']?.toString() ?? '';
           // Ignorar el eco de nuestros propios mensajes ya agregados localmente
           final msg = SoporteMensajeModel(
             id: _toInt(event.data['id'] ?? 0),
@@ -49,6 +51,7 @@ class SoporteProvider extends ChangeNotifier {
             fechaCreacion: event.data['fecha']?.toString(),
           );
           if (emisor == 'soporte') {
+            if (msg.id > 0 && _mensajes.any((m) => m.id == msg.id)) return;
             _mensajes.add(msg);
             notifyListeners();
           }
@@ -180,9 +183,6 @@ class SoporteProvider extends ChangeNotifier {
           mensaje: texto.trim(),
           fechaCreacion: DateTime.now().toIso8601String(),
         ));
-        // Tambien notificar por el hub para que soporte lo vea en vivo
-        await _signalr.enviarMensajeSoporte(
-            _solicitudActiva!.id, _auth.userId, _auth.user?.nombreCompleto ?? 'Pasajero', texto.trim());
         _enviando = false;
         notifyListeners();
         return true;
