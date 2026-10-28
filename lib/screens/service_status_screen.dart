@@ -8,9 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ride_provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../models/recorrido_model.dart';
 import '../../models/ride_model.dart';
 import '../../services/api_service.dart';
-import '../../services/directions_service.dart';
 import '../../services/marker_icons.dart';
 import '../../services/sound_service.dart';
 import '../../widgets/ruta_timeline.dart';
@@ -43,8 +43,10 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
   LatLng? _carTo;
   double _carBearingFrom = 0;
   double _carBearingTo = 0;
-  bool _trazando = false;
-  String _claveTrazo = '';
+  List<LatLng> _recorrido = const [];
+  Timer? _recorridoTimer;
+  bool _cargandoRecorrido = false;
+  String? _recorridoMensaje;
   bool _yaNavegoFin = false;
   bool _copiado = false;
   int _ultimoPasoCamara = -99;
@@ -66,6 +68,8 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
         _rideRef!.refrescarServicio();
       }
       _actualizarMapa(forzar: true);
+      _cargarRecorrido();
+      _recorridoTimer = Timer.periodic(const Duration(seconds: 12), (_) => _cargarRecorrido());
     });
   }
 
@@ -74,10 +78,12 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
     final rideProv = context.read<RideProvider>();
     // Sonido al cambiar de estatus el servicio (conductor asignado, en viaje, etc).
     final nuevoEstado = rideProv.currentRide?.estatus;
-    if (nuevoEstado != null && nuevoEstado != _ultimoEstado) {
+    final cambioEstado = nuevoEstado != _ultimoEstado;
+    if (nuevoEstado != null && cambioEstado) {
       if (_ultimoEstado != null) SoundService.cambioEstatus();
       _ultimoEstado = nuevoEstado;
     }
+    if (cambioEstado) _cargarRecorrido();
     if (rideProv.currentRide == null && !_yaNavegoFin) {
       final motivo = rideProv.ultimoMotivoCancelacion;
       if (motivo != null && motivo.trim().isNotEmpty) {
@@ -116,6 +122,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
   @override
   void dispose() {
     _rideRef?.removeListener(_onRideChanged);
+    _recorridoTimer?.cancel();
     _carAnim.dispose();
     super.dispose();
   }
@@ -221,10 +228,18 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
       _markers.add(_marcadorVehiculo(_carPos ?? nueva, _carBearing));
     }
 
-    // Ruta: al origen mientras el conductor llega; al destino durante el viaje.
-    final irADestino = ride.esEnViaje;
-    if (_debeRetrazarRuta(ride, irADestino)) {
-      _trazarRuta(ride: ride, irADestino: irADestino, posVeh: posVeh, oLat: oLat, oLng: oLng, dLat: dLat, dLng: dLng);
+    // Trazo del recorrido real reportado por el GPS del conductor.
+    _polylines.clear();
+    if (ride.esEnViaje && _recorrido.length >= 2) {
+      _polylines.add(Polyline(
+        polylineId: const PolylineId('recorrido_real'),
+        points: _recorrido,
+        color: VaiaColors.primary,
+        width: 5,
+        jointType: JointType.round,
+        startCap: Cap.roundCap,
+        endCap: Cap.roundCap,
+      ));
     }
 
     final cambioPaso = _ultimoPasoCamara != ride.pasoActual;
@@ -233,53 +248,46 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
     setState(() {});
   }
 
-  bool _debeRetrazarRuta(RideModel ride, bool irADestino) {
-    final origen = irADestino ? '${ride.latOrigen},${ride.lngOrigen}' : '${ride.conductor?.lat ?? ride.latOrigen},${ride.conductor?.lng ?? ride.lngOrigen}';
-    final clave = '${ride.id}|$irADestino|$origen';
-    if (clave == _claveTrazo) return false;
-    _claveTrazo = clave;
-    return true;
-  }
+  Future<void> _cargarRecorrido() async {
+    if (!mounted || _cargandoRecorrido) return;
+    final rideProv = context.read<RideProvider>();
+    final ride = rideProv.currentRide;
+    if (ride == null) return;
 
-  Future<void> _trazarRuta({
-    required RideModel ride,
-    required bool irADestino,
-    required LatLng? posVeh,
-    required double? oLat,
-    required double? oLng,
-    required double? dLat,
-    required double? dLng,
-  }) async {
-    if (_trazando) return;
-    LatLng? inicio;
-    LatLng? fin;
-    if (irADestino) {
-      if (oLat != null && oLng != null) inicio = LatLng(oLat, oLng);
-      if (dLat != null && dLng != null) fin = LatLng(dLat, dLng);
-    } else {
-      inicio = posVeh ?? (oLat != null && oLng != null ? LatLng(oLat, oLng) : null);
-      if (oLat != null && oLng != null) fin = LatLng(oLat, oLng);
+    if (!ride.esEnViaje) {
+      if (_recorrido.isNotEmpty || _recorridoMensaje != null) {
+        setState(() {
+          _recorrido = const [];
+          _recorridoMensaje = null;
+        });
+        _actualizarMapa();
+      }
+      return;
     }
-    if (inicio == null || fin == null) return;
 
-    _trazando = true;
-    final ruta = await DirectionsService.ruta(origen: inicio, destino: fin);
-    _trazando = false;
-    if (!mounted) return;
-    if (ruta != null && ruta.puntos.isNotEmpty) {
+    _cargandoRecorrido = true;
+    try {
+      final res = await rideProv.obtenerRecorrido(ride.id);
+      if (!mounted) return;
+      final recorrido = RecorridoModel.fromRows(res.list);
+      final primeraVez = _recorrido.length < 2;
       setState(() {
-        _polylines
-          ..clear()
-          ..add(Polyline(
-            polylineId: const PolylineId('ruta'),
-            points: ruta.puntos,
-            color: VaiaColors.primary,
-            width: 5,
-            jointType: JointType.round,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-          ));
+        _recorrido = recorrido.puntos;
+        if (!recorrido.disponible) {
+          _recorridoMensaje = recorrido.mensaje ?? 'El recorrido no esta disponible.';
+        } else if (recorrido.puntos.length < 2) {
+          _recorridoMensaje = recorrido.mensaje ?? 'Aun no hay puntos suficientes del recorrido.';
+        } else {
+          _recorridoMensaje = null;
+        }
       });
+      _actualizarMapa(forzar: primeraVez && recorrido.tieneRuta);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _recorridoMensaje = 'No se pudo cargar el recorrido real.');
+      }
+    } finally {
+      _cargandoRecorrido = false;
     }
   }
 
@@ -289,6 +297,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
     if (posVeh != null) puntos.add(posVeh);
     if (oLat != null && oLng != null) puntos.add(LatLng(oLat, oLng));
     if (ride.esEnViaje && dLat != null && dLng != null) puntos.add(LatLng(dLat, dLng));
+    if (ride.esEnViaje) puntos.addAll(_recorrido);
     if (puntos.length < 2) {
       if (puntos.isNotEmpty) _mapCtrl!.animateCamera(CameraUpdate.newLatLngZoom(puntos.first, 15));
       return;
@@ -599,6 +608,10 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
           ],
 
           _tarjetaRuta(ride),
+          if (_recorridoMensaje != null) ...[
+            const SizedBox(height: 10),
+            _avisoRecorrido(),
+          ],
           const SizedBox(height: 14),
 
           _tarjetaTarifa(ride),
@@ -835,6 +848,30 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
     );
   }
 
+  Widget _avisoRecorrido() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: VaiaColors.primaryGhost,
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        border: Border.all(color: VaiaColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.route_rounded, size: 17, color: VaiaColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _recorridoMensaje!,
+              style: const TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _tarjetaRuta(RideModel ride) {
     return _card(
       child: Column(
@@ -923,8 +960,24 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
               children: [
                 Icon(Icons.payments_outlined, size: 15, color: Colors.white70),
                 const SizedBox(width: 6),
-                Text('Se actualiza al avanzar', style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85))),
+                Text('Se actualiza con la distancia y el tiempo reales',
+                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85))),
               ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _statTarifa(Icons.route_rounded, '${(ride.distanciaMetros / 1000).toStringAsFixed(1)} km', 'Recorrido', true)),
+                Expanded(child: _statTarifa(Icons.timer_outlined, _fmtDuracion(ride.duracionSegundos), 'Tiempo', true)),
+                Expanded(child: _statTarifa(Icons.account_balance_wallet_outlined, ride.tipoPago ?? '--', 'Pago', true)),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            const Text(
+              'El monto final se calcula con la distancia y el tiempo reales del servicio.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: VaiaColors.textMuted),
             ),
           ],
           if (ride.esFinalizado || (ride.costoFinal ?? 0) > 0) ...[
@@ -943,6 +996,25 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
     );
   }
 
+  String _fmtDuracion(int? segundos) {
+    final min = ((segundos ?? 0) / 60).ceil();
+    if (min <= 0) return '--';
+    return min >= 60 ? '${min ~/ 60}h ${min % 60}m' : '$min min';
+  }
+
+  Widget _statTarifa(IconData icon, String value, String label, bool claro) {
+    final color = claro ? Colors.white : VaiaColors.textPrimary;
+    final muted = claro ? Colors.white70 : VaiaColors.textMuted;
+    return Column(
+      children: [
+        Icon(icon, size: 15, color: muted),
+        const SizedBox(height: 3),
+        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+        Text(label, style: TextStyle(fontSize: 9.5, color: muted)),
+      ],
+    );
+  }
   Widget _tarjetaParadas() {
     final paradas = context.watch<RideProvider>().paradas;
     return _card(

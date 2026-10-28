@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/api_response.dart';
 import '../models/ride_model.dart';
 import '../models/conductor_model.dart';
 import '../models/parada_model.dart';
@@ -447,6 +448,9 @@ class RideProvider extends ChangeNotifier {
     } catch (_) {}
     return null;
   }
+
+  Future<ApiResponse> obtenerRecorrido(int idServicio) =>
+      _api.recorrido(idServicio, _auth.userId);
 
   // ─── PARADAS ─────────────────────────────────────────────────
 

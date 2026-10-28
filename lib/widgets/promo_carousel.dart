@@ -10,7 +10,7 @@ import '../models/promocion_model.dart';
 /// Si la promocion no tiene imagen, usa un degradado con el titulo.
 class PromoCarousel extends StatefulWidget {
   final List<PromocionModel> promociones;
-  final VoidCallback? onTapPromo;
+  final void Function(PromocionModel promo)? onTapPromo;
   final double height;
   const PromoCarousel({super.key, required this.promociones, this.onTapPromo, this.height = 168});
 
@@ -111,7 +111,7 @@ class _PromoCarouselState extends State<PromoCarousel> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: GestureDetector(
-        onTap: widget.onTapPromo,
+        onTap: widget.onTapPromo == null ? null : () => widget.onTapPromo!(p),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
           child: Stack(

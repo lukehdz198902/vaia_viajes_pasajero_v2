@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
@@ -9,7 +10,9 @@ import '../../services/locale_provider.dart';
 import '../../services/biometric_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/app_info.dart';
+import 'delete_account_screen.dart';
 import 'login_screen.dart';
+import 'travel_preferences_screen.dart';
 import 'pin_screens.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -41,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _emCorreo1Ctrl = TextEditingController();
   final _emCorreo2Ctrl = TextEditingController();
   bool _guardandoEmergencia = false;
+  bool _tieneEmergencia = false;
 
   // Dispositivos
   List<Map<String, dynamic>> _sesiones = [];
@@ -50,8 +54,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _prefPago = 1;
 
   // Baja de cuenta
-  final _bajaPassCtrl = TextEditingController();
-  bool _dandoDeBaja = false;
 
   @override
   void initState() {
@@ -65,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _cargarEmergenciaYSesiones();
       _cargarPago();
+      context.read<ProfileProvider>().cargarPreferenciasViaje();
     });
   }
 
@@ -112,12 +115,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _emTelCtrl.text = m['telefono']?.toString() ?? '';
             _emCorreo1Ctrl.text = m['correo1']?.toString() ?? '';
             _emCorreo2Ctrl.text = m['correo2']?.toString() ?? '';
+            _tieneEmergencia = _emNombreCtrl.text.trim().isNotEmpty && _emCorreo1Ctrl.text.trim().isNotEmpty;
           });
         }
       }
     } catch (_) {}
     try {
-      final token = await StorageService().getSessionToken();
+      final token = await StorageService().getDeviceId();
+      await api.registrarSesion(auth.userId, token,
+          dispositivo: AppInfo.dispositivo, so: AppInfo.sistemaOperativo);
       final s = await api.listarSesiones(auth.userId, tokenActual: token);
       if (s.success && s.list != null && mounted) {
         setState(() => _sesiones = s.list!.map((e) => Map<String, dynamic>.from(e as Map)).toList());
@@ -125,11 +131,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {}
   }
 
+  bool _emailValido(String value) {
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$').hasMatch(value.trim());
+  }
+
   Future<void> _guardarEmergencia() async {
     if (_emNombreCtrl.text.trim().isEmpty) { _toast('Ingresa el nombre del contacto', ok: false); return; }
     final tel = _emTelCtrl.text.trim();
-    if (!RegExp(r'^\d{10}$').hasMatch(tel)) { _toast('El telefono debe tener 10 digitos', ok: false); return; }
-    if (_emCorreo1Ctrl.text.trim().isEmpty) { _toast('Ingresa el correo electronico principal', ok: false); return; }
+    if (!RegExp(r'^\d{10}$').hasMatch(tel)) { _toast('El telefono debe tener exactamente 10 digitos', ok: false); return; }
+    final correo1 = _emCorreo1Ctrl.text.trim();
+    if (correo1.isEmpty) { _toast('Ingresa el correo electronico principal', ok: false); return; }
+    if (!_emailValido(correo1)) { _toast('Ingresa un correo electronico valido', ok: false); return; }
+    final correo2 = _emCorreo2Ctrl.text.trim();
+    if (correo2.isNotEmpty && !_emailValido(correo2)) {
+      _toast('El segundo correo electronico no es valido', ok: false);
+      return;
+    }
     final auth = context.read<AuthProvider>();
     final api = context.read<ApiService>();
     setState(() => _guardandoEmergencia = true);
@@ -137,11 +154,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'idPasajero': auth.userId,
       'nombrecompleto': _emNombreCtrl.text.trim(),
       'telefono': tel,
-      'correo1': _emCorreo1Ctrl.text.trim(),
-      'correo2': _emCorreo2Ctrl.text.trim().isEmpty ? null : _emCorreo2Ctrl.text.trim(),
+      'correo1': correo1,
+      'correo2': correo2.isEmpty ? null : correo2,
     });
     if (!mounted) return;
-    setState(() => _guardandoEmergencia = false);
+    setState(() {
+      _guardandoEmergencia = false;
+      if (res.success) _tieneEmergencia = true;
+    });
     _toast(res.success ? 'Contacto de emergencia guardado' : 'No se pudo guardar', ok: res.success);
   }
 
@@ -210,103 +230,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _emTelCtrl.dispose();
     _emCorreo1Ctrl.dispose();
     _emCorreo2Ctrl.dispose();
-    _bajaPassCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _darDeBaja() async {
-    _bajaPassCtrl.clear();
-    bool obscure = true;
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Dar de baja mi cuenta'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.danger.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
-                ),
-                child: const Text(
-                  'Se desactivara tu cuenta y perderas el acceso. Toda tu informacion quedara inactiva y NO podra recuperarse desde la app.',
-                  style: TextStyle(fontSize: 12.5, color: AppTheme.danger, fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _bajaPassCtrl,
-                obscureText: obscure,
-                decoration: InputDecoration(
-                  labelText: 'Confirma tu contrasena',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                    onPressed: () => setSt(() => obscure = !obscure),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            TextButton(
-              onPressed: () {
-                if (_bajaPassCtrl.text.trim().isEmpty) return;
-                Navigator.pop(ctx, true);
-              },
-              style: TextButton.styleFrom(foregroundColor: AppTheme.danger),
-              child: const Text('Dar de baja'),
-            ),
-          ],
-        ),
-      ),
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const DeleteAccountScreen()),
     );
-    if (confirmar != true) return;
-    if (_bajaPassCtrl.text.trim().isEmpty) {
-      _toast('Ingresa tu contrasena para confirmar', ok: false);
-      return;
-    }
-    setState(() => _dandoDeBaja = true);
-    final auth = context.read<AuthProvider>();
-    final api = context.read<ApiService>();
-    final res = await api.darDeBaja(auth.userId, _bajaPassCtrl.text);
-    if (!mounted) return;
-    setState(() => _dandoDeBaja = false);
-    if (res.success) {
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          icon: const Icon(Icons.check_circle_outline, color: AppTheme.danger, size: 40),
-          title: const Text('Cuenta dada de baja'),
-          content: const Text(
-            'Tu cuenta fue desactivada. Te enviamos un correo de confirmacion. Si no reconoces este movimiento, contacta al area de soporte de Vaia.',
-            style: TextStyle(fontSize: 13.5),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
-          ],
-        ),
-      );
-      await auth.logout();
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    } else {
-      final msg = (res.message ?? '').toString();
-      _toast(msg.isNotEmpty ? msg : 'No se pudo dar de baja la cuenta', ok: false);
-    }
   }
-
   String _fechaAcceso(dynamic iso) {
     if (iso == null) return '';
     try {
@@ -637,6 +568,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            _sectionHeader('Preferencias de viaje'),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.tune_rounded, color: AppTheme.primary),
+                title: const Text('Configurar preferencias del viaje', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(
+                  context.watch<ProfileProvider>().preferencias.resumen.take(2).join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: AppTheme.textMedium),
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textMuted),
+                onTap: () async {
+                  await context.read<ProfileProvider>().cargarPreferenciasViaje(force: true);
+                  if (!context.mounted) return;
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TravelPreferencesScreen()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
             _sectionHeader('Permisos y privacidad'),
             const SizedBox(height: 8),
             Card(
@@ -656,6 +611,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
             _sectionHeader('Contacto de emergencia'),
             const SizedBox(height: 8),
+            if (!_tieneEmergencia)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.danger.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.health_and_safety_outlined, color: AppTheme.danger, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Te recomendamos registrar un contacto de emergencia. Si activas un SOS, se le enviara un correo con los datos del servicio.',
+                        style: TextStyle(fontSize: 12, color: AppTheme.danger, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -663,11 +640,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _buildField('Nombre completo', _emNombreCtrl),
                     const SizedBox(height: 12),
-                    _buildField('Telefono (10 digitos, con codigo de pais)', _emTelCtrl, keyboardType: TextInputType.phone),
+                    _buildField(
+                      'Telefono (exactamente 10 digitos)',
+                      _emTelCtrl,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                    ),
                     const SizedBox(height: 12),
-                    _buildField('Correo electronico 1', _emCorreo1Ctrl, keyboardType: TextInputType.emailAddress),
+                    _buildField(
+                      'Correo electronico 1',
+                      _emCorreo1Ctrl,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
+                    ),
                     const SizedBox(height: 12),
-                    _buildField('Correo electronico 2 (opcional)', _emCorreo2Ctrl, keyboardType: TextInputType.emailAddress),
+                    _buildField(
+                      'Correo electronico 2 (opcional)',
+                      _emCorreo2Ctrl,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
+                    ),
                     const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,
@@ -736,13 +731,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 6),
             Center(
-              child: _dandoDeBaja
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : TextButton(
-                      onPressed: _darDeBaja,
-                      style: TextButton.styleFrom(foregroundColor: AppTheme.textMedium),
-                      child: const Text('Dar de baja mi cuenta', style: TextStyle(fontSize: 11.5)),
-                    ),
+              child: TextButton(
+                onPressed: _darDeBaja,
+                style: TextButton.styleFrom(foregroundColor: AppTheme.textMedium),
+                child: const Text('Eliminar mi cuenta', style: TextStyle(fontSize: 11.5)),
+              ),
             ),
             const SizedBox(height: 14),
           ],
@@ -762,11 +755,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildField(String label, TextEditingController controller,
-      {bool obscure = false, TextInputType keyboardType = TextInputType.text, String? hint}) {
+      {bool obscure = false,
+      TextInputType keyboardType = TextInputType.text,
+      String? hint,
+      List<TextInputFormatter>? inputFormatters}) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       decoration: InputDecoration(
         labelText: label.isEmpty ? null : label,
         hintText: hint,

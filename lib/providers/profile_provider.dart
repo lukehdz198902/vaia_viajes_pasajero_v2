@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/favorito_model.dart';
 import '../models/promocion_model.dart';
+import '../models/preferencias_viaje_model.dart';
 import '../models/aviso_model.dart';
 import '../services/api_service.dart';
 import '../services/logger.dart';
@@ -12,12 +13,20 @@ class ProfileProvider extends ChangeNotifier {
 
   ProfileProvider(this._api, this._auth);
 
-  void updateAuth(AuthProvider auth) => _auth = auth;
+  void updateAuth(AuthProvider auth) {
+    if (_auth.userId != auth.userId) {
+      _preferencias = PreferenciasViaje();
+      _preferenciasCargadas = false;
+    }
+    _auth = auth;
+  }
 
   List<FavoritoModel> _favoritos = [];
   List<PromocionModel> _promociones = [];
   List<AvisoModel> _avisos = [];
   List<Map<String, dynamic>> _tarifas = [];
+  PreferenciasViaje _preferencias = PreferenciasViaje();
+  bool _preferenciasCargadas = false;
   bool _loading = false;
   String? _error;
 
@@ -25,9 +34,40 @@ class ProfileProvider extends ChangeNotifier {
   List<PromocionModel> get promociones => _promociones;
   List<AvisoModel> get avisos => _avisos;
   List<Map<String, dynamic>> get tarifas => _tarifas;
+  PreferenciasViaje get preferencias => _preferencias;
+  bool get preferenciasCargadas => _preferenciasCargadas;
   bool get loading => _loading;
   String? get error => _error;
 
+
+  Future<void> cargarPreferenciasViaje({bool force = false}) async {
+    if (_preferenciasCargadas && !force) return;
+    try {
+      final res = await _api.preferenciasViaje(_auth.userId);
+      if (res.success && res.firstOrNull() is Map) {
+        _preferencias = PreferenciasViaje.fromJson(Map<String, dynamic>.from(res.firstOrNull() as Map));
+        _preferenciasCargadas = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      Logger.w('Profile', 'cargarPreferenciasViaje: $e');
+    }
+  }
+
+  Future<bool> guardarPreferenciasViaje(PreferenciasViaje prefs) async {
+    try {
+      final res = await _api.guardarPreferenciasViaje(prefs.toMap(_auth.userId));
+      if (res.success) {
+        _preferencias = prefs..configurado = true;
+        _preferenciasCargadas = true;
+        notifyListeners();
+      }
+      return res.success;
+    } catch (e) {
+      Logger.w('Profile', 'guardarPreferenciasViaje: $e');
+      return false;
+    }
+  }
   /// Carga la configuracion de costos vigente de la compania.
   Future<void> cargarTarifas(int idCompania) async {
     try {

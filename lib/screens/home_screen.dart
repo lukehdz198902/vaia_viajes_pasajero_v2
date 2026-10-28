@@ -24,6 +24,7 @@ import '../../services/foto_util.dart';
 import '../../providers/theme_provider.dart';
 import '../../widgets/vaia_widgets.dart';
 import '../../widgets/promo_carousel.dart';
+import '../../widgets/app_tour_dialog.dart';
 import 'service_request_screen.dart';
 import 'service_status_screen.dart';
 import 'login_screen.dart';
@@ -155,6 +156,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Muestra una promocion activa aleatoria al ingresar a la app.
   Future<void> _mostrarPromoDelDia() async {
     if (_promoMostrada || !context.read<AuthProvider>().isLoggedIn) return;
+    await mostrarTourPasajero(context);
+    if (!mounted) return;
     final profile = context.read<ProfileProvider>();
     await profile.cargarPromociones();
     if (!mounted) return;
@@ -167,6 +170,25 @@ class _HomeScreenState extends State<HomeScreen> {
     _promoDialog(promo);
   }
 
+
+  Future<void> _abrirUrl(String url) async {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) return;
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        await launchUrl(uri);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _abrirPromocion(PromocionModel p) async {
+    final url = (p.url ?? '').trim();
+    if (url.isNotEmpty) {
+      await _abrirUrl(url);
+      return;
+    }
+    _promoDialog(p);
+  }
   void _promoDialog(PromocionModel p) {
     Uint8List? img;
     if (p.imgBase64 != null && p.imgBase64!.isNotEmpty) {
@@ -208,9 +230,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(ctx);
-                        Navigator.pushNamed(context, '/promotions');
+                        if ((p.url ?? '').trim().isNotEmpty) {
+                          _abrirUrl(p.url!);
+                        } else {
+                          Navigator.pushNamed(context, '/promotions');
+                        }
                       },
-                      child: const Text('Ver promociones'),
+                      child: Text((p.url ?? '').trim().isNotEmpty ? 'Abrir promocion' : 'Ver promociones'),
                     ),
                   ),
                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
@@ -435,9 +461,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 PromoCarousel(
                   promociones: promos,
                   height: 150,
-                  onTapPromo: () {
+                  onTapPromo: (p) {
                     Navigator.of(ctx).pop();
-                    Navigator.pushNamed(context, '/promotions');
+                    _abrirPromocion(p);
                   },
                 ),
               ],
@@ -883,7 +909,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 14),
                 PromoCarousel(
                   promociones: profile.promociones,
-                  onTapPromo: () => Navigator.pushNamed(context, '/promotions'),
+                  onTapPromo: _abrirPromocion,
                 ),
               ],
               if (profile.favoritos.isNotEmpty) ...[

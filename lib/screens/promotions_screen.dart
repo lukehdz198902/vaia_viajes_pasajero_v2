@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/theme.dart';
 import '../../models/promocion_model.dart';
@@ -212,6 +213,25 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                     ),
                   ],
                 ),
+                if ((promo.url ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final uri = Uri.tryParse(promo.url!.trim());
+                        if (uri == null) return;
+                        try {
+                          if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+                            await launchUrl(uri);
+                          }
+                        } catch (_) {}
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                      label: const Text('Abrir enlace de la promocion'),
+                    ),
+                  ),
+                ],
                 if ((promo.codigo ?? '').trim().isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(

@@ -194,6 +194,12 @@ class ApiService {
   Future<ApiResponse> guardarContactoEmergencia(Map<String, dynamic> data) =>
       post('/GuardarContactoEmergencia', body: data);
 
+  Future<ApiResponse> preferenciasViaje(int idPasajero) =>
+      get('/PreferenciasViaje', params: {'idPasajero': idPasajero.toString()});
+
+  Future<ApiResponse> guardarPreferenciasViaje(Map<String, dynamic> data) =>
+      post('/GuardarPreferenciasViaje', body: data);
+
   Future<ApiResponse> listarSesiones(int idPasajero, {String? tokenActual}) =>
       get('/ListarSesiones', params: {
         'idPasajero': idPasajero.toString(),
@@ -229,6 +235,12 @@ class ApiService {
   /// Da de baja (desactiva) la cuenta del pasajero tras validar la contrasena.
   Future<ApiResponse> darDeBaja(int idPasajero, String pass) =>
       post('/DarDeBaja', body: {'idPasajero': idPasajero, 'pass': pass});
+
+  Future<ApiResponse> recorrido(int idServicio, int idPasajero) =>
+      get('/Recorrido', params: {
+        'idServicio': idServicio.toString(),
+        'idPasajero': idPasajero.toString(),
+      });
 
   Future<ApiResponse> listarParadas(int idServicio) =>
       getRoot('Servicio', 'ListarParadas', params: {'idservicio': idServicio.toString()});

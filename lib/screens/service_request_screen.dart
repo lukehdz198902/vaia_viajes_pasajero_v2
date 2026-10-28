@@ -12,6 +12,7 @@ import '../../models/favorito_model.dart';
 import '../../config/favorito_categorias.dart';
 import 'service_status_screen.dart';
 import 'place_search_screen.dart';
+import 'travel_preferences_screen.dart';
 
 class ServiceRequestScreen extends StatefulWidget {
   final double currentLat;
@@ -97,6 +98,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       if (!mounted) return;
       final idCompania = context.read<AuthProvider>().idCompania;
       context.read<ProfileProvider>().cargarTarifas(idCompania > 0 ? idCompania : 1);
+      context.read<ProfileProvider>().cargarPreferenciasViaje();
       _cargarMetodosPago();
     });
   }
@@ -407,14 +409,25 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   }
 
   Future<void> _openPlaceSearch({required bool isOrigin}) async {
-    final result = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => PlaceSearchScreen(
-        isOrigin: isOrigin,
-        lat: isOrigin ? widget.currentLat : (_originLatLng?.latitude ?? widget.currentLat),
-        lng: isOrigin ? widget.currentLng : (_originLatLng?.longitude ?? widget.currentLng),
-      )),
+    final result = await showPlaceSearchSheet(
+      context,
+      titulo: isOrigin ? 'Buscar origen' : 'Buscar destino',
+      icono: isOrigin ? Icons.trip_origin : Icons.location_on,
+      lat: isOrigin ? widget.currentLat : (_originLatLng?.latitude ?? widget.currentLat),
+      lng: isOrigin ? widget.currentLng : (_originLatLng?.longitude ?? widget.currentLng),
     );
     if (result == null) return;
+    if (result['useMap'] == true) {
+      setState(() => _isSettingOrigin = isOrigin);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isOrigin ? 'Toca el mapa para marcar el origen' : 'Toca el mapa para marcar el destino'),
+          backgroundColor: AppTheme.primary,
+          duration: const Duration(seconds: 2),
+        ));
+      }
+      return;
+    }
     final latLng = LatLng(result['lat'] as double, result['lng'] as double);
     final text = result['address'] as String? ?? '';
     if (isOrigin) {
@@ -432,14 +445,15 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   }
 
   Future<void> _agregarParada() async {
-    final result = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(builder: (_) => PlaceSearchScreen(
-        isOrigin: false,
-        lat: _originLatLng?.latitude ?? widget.currentLat,
-        lng: _originLatLng?.longitude ?? widget.currentLng,
-      )),
+    final result = await showPlaceSearchSheet(
+      context,
+      titulo: 'Buscar parada ${_paradas.length + 1}',
+      icono: Icons.place_rounded,
+      permitirMapa: false,
+      lat: _originLatLng?.latitude ?? widget.currentLat,
+      lng: _originLatLng?.longitude ?? widget.currentLng,
     );
-    if (result == null) return;
+    if (result == null || result['useMap'] == true) return;
     setState(() {
       _paradas.add({
         'id': DateTime.now().microsecondsSinceEpoch.toString(),
@@ -483,6 +497,17 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione un destino'), backgroundColor: Colors.red));
       return;
     }
+
+    final profile = context.read<ProfileProvider>();
+    await profile.cargarPreferenciasViaje();
+    if (!mounted) return;
+    if (!profile.preferencias.configurado) {
+      final ok = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const TravelPreferencesScreen(onboarding: true)),
+      );
+      if (!mounted || ok != true) return;
+    }
+
     setState(() => _isLoading = true);
     final ride = context.read<RideProvider>();
 
@@ -564,6 +589,10 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     final profile = context.watch<ProfileProvider>();
     final finalCost = _estimatedCost - _discount;
     final tieneConfig = _destinationController.text.trim().isNotEmpty || _paradas.isNotEmpty;
+    final tarifa = profile.tarifas.isNotEmpty ? profile.tarifas.first : null;
+    final tarifaMinima = _toDouble(tarifa?['costominimo']);
+    final tarifaKm = _toDouble(tarifa?['costoporkm']);
+    final tarifaMinuto = _toDouble(tarifa?['costoporminuto']);
 
     return PopScope(
       canPop: !tieneConfig,
@@ -755,57 +784,115 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                         ),
                       ),
                     if (_estimatedDistance > 0) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(18),
                           border: Border.all(color: AppTheme.border),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
                         ),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _detailRow(Icons.straighten, 'Distancia total', '${(_estimatedDistance / 1000).toStringAsFixed(1)} km'),
-                            const Divider(height: 20),
-                            _detailRow(Icons.timer_outlined, 'Tiempo estimado', _formatDuration(_estimatedDuration)),
-                            const Divider(height: 20),
-                            _detailRow(Icons.attach_money, 'Tarifa base', '\$8.50'),
-                            const Divider(height: 20),
-                            _detailRow(Icons.speed, 'Costo por km', '\$5.50/km'),
-                            if (_discount > 0) ...[
-                              const Divider(height: 20),
-                              _detailRow(Icons.discount_outlined, 'Descuento', '-\$${_discount.toStringAsFixed(2)}',
-                                  valueColor: Colors.green),
-                            ],
-                            const Divider(height: 20),
                             Row(
                               children: [
-                                Icon(Icons.receipt_long, size: 18, color: AppTheme.primary),
-                                const SizedBox(width: 8),
-                                Text('Total estimado', style: TextStyle(fontSize: 14, color: AppTheme.textMedium)),
-                                const Spacer(),
-                                Text(
-                                  '\$${finalCost.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primary,
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                                  child: const Icon(Icons.receipt_long_rounded, size: 19, color: AppTheme.primary),
+                                ),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Resumen del costo', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
+                                      Text('Calculado con la tarifa vigente de tu ciudad',
+                                          style: TextStyle(fontSize: 11, color: AppTheme.textMedium)),
+                                    ],
                                   ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              Expanded(child: _costoMini(Icons.route_rounded, 'Distancia', '${(_estimatedDistance / 1000).toStringAsFixed(1)} km')),
+                              const SizedBox(width: 8),
+                              Expanded(child: _costoMini(Icons.schedule_rounded, 'Tiempo estimado', _formatDuration(_estimatedDuration))),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(child: _costoMini(Icons.flag_rounded, 'Tarifa minima', '\$${tarifaMinima.toStringAsFixed(2)}')),
+                              const SizedBox(width: 8),
+                              Expanded(child: _costoMini(Icons.speed_rounded, 'Costo por km', '\$${tarifaKm.toStringAsFixed(2)}')),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(child: _costoMini(Icons.timer_outlined, 'Costo por minuto', '\$${tarifaMinuto.toStringAsFixed(2)}')),
+                              const SizedBox(width: 8),
+                              Expanded(child: _costoMini(Icons.account_balance_wallet_rounded, 'Forma de pago', _metodosPago[_selectedPaymentType] ?? 'Efectivo')),
+                            ]),
+                            if (_discount > 0) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                                ),
+                                child: Row(children: [
+                                  const Icon(Icons.discount_rounded, size: 17, color: Colors.green),
+                                  const SizedBox(width: 8),
+                                  const Text('Descuento aplicado', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green)),
+                                  const Spacer(),
+                                  Text('-\$${_discount.toStringAsFixed(2)}',
+                                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Colors.green)),
+                                ]),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [Color(0xFFFFFBEB), Color(0xFFFEF3C7)]),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Total estimado', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+                                        Text('El monto final puede variar por trafico o cambios de ruta.',
+                                            style: TextStyle(fontSize: 10.5, color: AppTheme.textMedium)),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${finalCost.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppTheme.primary, letterSpacing: -0.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded, size: 13, color: AppTheme.textLight),
+                                SizedBox(width: 4),
+                                Expanded(
+                                  child: Text('El cobro se calcula con la distancia y el tiempo reales del servicio.',
+                                      style: TextStyle(fontSize: 10.5, color: AppTheme.textLight)),
                                 ),
                               ],
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.info_outline, size: 14, color: AppTheme.textLight),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Pago: ${_metodosPago[_selectedPaymentType] ?? "Efectivo"}',
-                            style: TextStyle(fontSize: 12, color: AppTheme.textLight),
-                          ),
-                        ],
                       ),
                     ],
                     const SizedBox(height: 12),
@@ -844,6 +931,31 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
             style: TextButton.styleFrom(foregroundColor: AppTheme.danger),
             child: const Text('Salir'),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _costoMini(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppTheme.bgLight,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.border.withValues(alpha: 0.7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 13, color: AppTheme.primary),
+            const SizedBox(width: 4),
+            Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: AppTheme.textMedium))),
+          ]),
+          const SizedBox(height: 3),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
         ],
       ),
     );
