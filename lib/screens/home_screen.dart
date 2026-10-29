@@ -333,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _animateTo(double lat, double lng) {
-    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 15));
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 16.5));
   }
 
   Future<void> _loadDrivers() async {
@@ -823,7 +823,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return GoogleMap(
         initialCameraPosition: CameraPosition(
           target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-          zoom: 15,
+          zoom: 16.5,
         ),
         onMapCreated: (ctrl) => _mapController = ctrl,
         markers: _markers,

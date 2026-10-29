@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/ride_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/recorrido_model.dart';
@@ -70,6 +72,8 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
       _actualizarMapa(forzar: true);
       _cargarRecorrido();
       _recorridoTimer = Timer.periodic(const Duration(seconds: 12), (_) => _cargarRecorrido());
+      final idCompania = context.read<AuthProvider>().idCompania;
+      context.read<ProfileProvider>().cargarTarifas(idCompania > 0 ? idCompania : 1);
     });
   }
 
@@ -335,6 +339,14 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
         title: const Text('Pagar en linea'),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
         children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 4, 24, 10),
+            child: Text(
+              'El monto del servicio se cobra integro. PayPal y Mercado Pago pueden aplicar su propia comision por la transaccion; '
+              'ese cargo corresponde al proveedor y no a Vaia.',
+              style: TextStyle(fontSize: 11, height: 1.4, color: VaiaColors.textSecondary),
+            ),
+          ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'mercadopago'),
             child: const Row(children: [Icon(Icons.account_balance_wallet_outlined), SizedBox(width: 12), Text('MercadoPago')]),
@@ -930,6 +942,13 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
 
   Widget _tarjetaTarifa(RideModel ride) {
     final monto = ride.montoActual;
+    final profile = context.watch<ProfileProvider>();
+    final tarifa = profile.tarifas.isNotEmpty ? profile.tarifas.first : null;
+    final tMin = _toDouble(tarifa?['costominimo']);
+    final tKm = _toDouble(tarifa?['costoporkm']);
+    final tMinuto = _toDouble(tarifa?['costoporminuto']);
+    final tieneTarifa = tMin > 0 || tKm > 0 || tMinuto > 0;
+    final esProveedor = _esPagoProveedor(ride.tipoPago);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -972,12 +991,63 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
                 Expanded(child: _statTarifa(Icons.account_balance_wallet_outlined, ride.tipoPago ?? '--', 'Pago', true)),
               ],
             ),
+            if (tieneTarifa) ...[
+              const SizedBox(height: 10),
+              Divider(height: 1, color: Colors.white.withValues(alpha: 0.22)),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _statTarifa(Icons.flag_rounded, '\$${tMin.toStringAsFixed(2)}', 'Tarifa minima', true)),
+                  Expanded(child: _statTarifa(Icons.speed_rounded, '\$${tKm.toStringAsFixed(2)}', 'Por km', true)),
+                  Expanded(child: _statTarifa(Icons.timer_outlined, '\$${tMinuto.toStringAsFixed(2)}', 'Por minuto', true)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Total = tarifa minima + (km x costo por km) + (minutos x costo por minuto).',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 9.5, height: 1.35, color: Colors.white.withValues(alpha: 0.72)),
+              ),
+            ],
           ] else ...[
             const SizedBox(height: 8),
             const Text(
               'El monto final se calcula con la distancia y el tiempo reales del servicio.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 11, color: VaiaColors.textMuted),
+            ),
+          ],
+          if (esProveedor) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              decoration: BoxDecoration(
+                color: (ride.esEnViaje ? Colors.white : VaiaColors.surface).withValues(alpha: ride.esEnViaje ? 0.14 : 1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: ride.esEnViaje ? Colors.white.withValues(alpha: 0.28) : const Color(0xFFFDE68A),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.account_balance_outlined, size: 15,
+                      color: ride.esEnViaje ? Colors.white : const Color(0xFFB45309)),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      '${ride.tipoPago} cobra su propia comision por la transaccion. '
+                      'Corresponde al proveedor y no forma parte del cobro de Vaia.',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        height: 1.4,
+                        color: ride.esEnViaje ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           if (ride.esFinalizado || (ride.costoFinal ?? 0) > 0) ...[
@@ -1000,6 +1070,17 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
     final min = ((segundos ?? 0) / 60).ceil();
     if (min <= 0) return '--';
     return min >= 60 ? '${min ~/ 60}h ${min % 60}m' : '$min min';
+  }
+
+  double _toDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
+  bool _esPagoProveedor(String? tipoPago) {
+    final t = (tipoPago ?? '').toLowerCase();
+    return t.contains('paypal') || t.contains('mercado');
   }
 
   Widget _statTarifa(IconData icon, String value, String label, bool claro) {

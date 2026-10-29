@@ -1,4 +1,4 @@
-﻿import 'dart:ui' as ui;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_svg/flutter_svg.dart';
@@ -21,7 +21,7 @@ class MarkerIcons {
   /// Carga los tres iconos (idempotente). Llamar al abrir una pantalla con mapa.
   static Future<void> cargar() async {
     if (_cargado) return;
-    try { _car = await _png('assets/images/carro32_lado.png', 56); } catch (_) {}
+    try { _car = await _png('assets/images/carro32_lado.png', 64); } catch (_) {}
     try { _origin = await _svg('assets/images/ic_marker_origin.svg', 56); } catch (_) {}
     try { _destination = await _svg('assets/images/ic_marker_destination.svg', 56); } catch (_) {}
     _cargado = true;

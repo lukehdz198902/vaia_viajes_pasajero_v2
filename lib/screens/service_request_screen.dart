@@ -50,6 +50,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
   bool _validatingPromo = false;
   double _estimatedDistance = 0;
   double _estimatedCost = 0;
+  double _minPaypal = 0;
+  double _minMercadoPago = 0;
   double _discount = 0;
   int _estimatedDuration = 0;
   String? _promoMessage;
@@ -94,11 +96,16 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     }
     MarkerIcons.cargar().then((_) { if (mounted) _updateMapMarkers(); });
     // Tarifas vigentes del servidor (costo minimo, por km y por minuto)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final idCompania = context.read<AuthProvider>().idCompania;
-      context.read<ProfileProvider>().cargarTarifas(idCompania > 0 ? idCompania : 1);
-      context.read<ProfileProvider>().cargarPreferenciasViaje();
+      final profile = context.read<ProfileProvider>();
+      await profile.cargarTarifas(idCompania > 0 ? idCompania : 1);
+      if (!mounted) return;
+      // La tarifa llega despues del primer calculo: se reestima para que el
+      // desglose y el total usen los mismos valores configurados.
+      if (_destinationLatLng != null && _originLatLng != null) _calculateEstimate();
+      profile.cargarPreferenciasViaje();
       _cargarMetodosPago();
     });
   }
@@ -179,7 +186,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     setState(() {
       _estimatedDistance = distRecta;
       _estimatedDuration = (distRecta / 8.33).round();
-      _estimatedCost = _calculateCost(distRecta, _selectedTripType);
+      _estimatedCost = _calculateCost(distRecta, _selectedTripType, durationSegundos: _estimatedDuration);
       _applyPromo();
     });
 
@@ -208,7 +215,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         ));
       _estimatedDistance = ruta.distanciaMetros.toDouble();
       _estimatedDuration = ruta.duracionSegundos;
-      _estimatedCost = _calculateCost(_estimatedDistance, _selectedTripType);
+      _estimatedCost = _calculateCost(_estimatedDistance, _selectedTripType, durationSegundos: ruta.duracionSegundos);
       _applyPromo();
     });
   }
@@ -234,12 +241,22 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     return double.tryParse(v.toString()) ?? 0;
   }
 
+  /// Tarifas de respaldo mientras el servidor responde. Se usan solo si la
+  /// compania no tiene una tarifa configurada.
+  static const double _tarifaMinimaDefecto = 8.50;
+  static const double _tarifaKmDefecto = 5.50;
+  static const double _tarifaMinutoDefecto = 1.20;
+
   /// Costo estimado: usa la tarifa configurada en el servidor
   /// (minimo + por km + por minuto). El costo real se calcula por
   /// tarifa dinamica al finalizar el servicio.
-  double _calculateCost(double meters, String type) {
+  double _calculateCost(double meters, String type, {int? durationSegundos}) {
     final km = meters / 1000;
-    final minutes = (meters / 8.33) / 60;
+    // Se usa el mismo tiempo que se muestra al pasajero para que el desglose
+    // y el total sean consistentes.
+    final minutes = (durationSegundos != null && durationSegundos > 0)
+        ? durationSegundos / 60
+        : (meters / 8.33) / 60;
 
     final tarifas = context.read<ProfileProvider>().tarifas;
     if (tarifas.isNotEmpty) {
@@ -254,7 +271,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     }
 
     // Respaldo local mientras llega la configuracion del servidor
-    return 8.50 + km * 5.50 + minutes * 1.20;
+    return _tarifaMinimaDefecto + km * _tarifaKmDefecto + minutes * _tarifaMinutoDefecto;
   }
 
   // Los tipos de viaje (Basico/Plus/VIP) no cambian la tarifa; solo determinan
@@ -275,6 +292,8 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         final c = Map<String, dynamic>.from(cfg.list!.first as Map);
         if (act(c['paypalactivo'])) m[4] = 'PayPal';
         if (act(c['mercadopagoactivo'])) m[5] = 'Mercado Pago';
+        _minPaypal = _toDouble(c['minsparapagopaypal']);
+        _minMercadoPago = _toDouble(c['minsparapagomercadopago']);
       }
       int prefId = 1;
       if (pref.success && pref.list != null && pref.list!.isNotEmpty) {
@@ -498,6 +517,23 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
       return;
     }
 
+    // Los proveedores de pago en linea tienen un monto minimo por transaccion.
+    final montoServicio = (_estimatedCost - _discount) < 0 ? 0.0 : (_estimatedCost - _discount);
+    if (_selectedPaymentType == 4 && _minPaypal > 0 && montoServicio < _minPaypal) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('PayPal requiere un monto minimo de \$${_minPaypal.toStringAsFixed(2)}. Elige otro metodo de pago.'),
+        backgroundColor: AppTheme.danger,
+      ));
+      return;
+    }
+    if (_selectedPaymentType == 5 && _minMercadoPago > 0 && montoServicio < _minMercadoPago) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Mercado Pago requiere un monto minimo de \$${_minMercadoPago.toStringAsFixed(2)}. Elige otro metodo de pago.'),
+        backgroundColor: AppTheme.danger,
+      ));
+      return;
+    }
+
     final profile = context.read<ProfileProvider>();
     await profile.cargarPreferenciasViaje();
     if (!mounted) return;
@@ -590,9 +626,19 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     final finalCost = _estimatedCost - _discount;
     final tieneConfig = _destinationController.text.trim().isNotEmpty || _paradas.isNotEmpty;
     final tarifa = profile.tarifas.isNotEmpty ? profile.tarifas.first : null;
-    final tarifaMinima = _toDouble(tarifa?['costominimo']);
-    final tarifaKm = _toDouble(tarifa?['costoporkm']);
-    final tarifaMinuto = _toDouble(tarifa?['costoporminuto']);
+    final tarifaMinimaServidor = _toDouble(tarifa?['costominimo']);
+    final tarifaKmServidor = _toDouble(tarifa?['costoporkm']);
+    final tarifaMinutoServidor = _toDouble(tarifa?['costoporminuto']);
+    final tarifaDelServidor = tarifaMinimaServidor > 0 || tarifaKmServidor > 0 || tarifaMinutoServidor > 0;
+    final tarifaRespaldo = tarifa?['esrespaldo'] == true || tarifa?['esrespaldo']?.toString() == '1';
+    // Se muestran exactamente los valores con los que se calcula el total.
+    final tarifaMinima = tarifaDelServidor ? tarifaMinimaServidor : _tarifaMinimaDefecto;
+    final tarifaKm = tarifaDelServidor ? tarifaKmServidor : _tarifaKmDefecto;
+    final tarifaMinuto = tarifaDelServidor ? tarifaMinutoServidor : _tarifaMinutoDefecto;
+    final esPagoProveedor = _selectedPaymentType == 4 || _selectedPaymentType == 5;
+    final nombreProveedor = _selectedPaymentType == 4 ? 'PayPal' : 'Mercado Pago';
+    final minimoProveedor = _selectedPaymentType == 4 ? _minPaypal : _minMercadoPago;
+    final montoTotal = finalCost < 0 ? 0.0 : finalCost;
 
     return PopScope(
       canPop: !tieneConfig,
@@ -744,6 +790,32 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                       seleccionado: _selectedPaymentType,
                       onSelect: (id) => setState(() => _selectedPaymentType = id),
                     ),
+                    if (esPagoProveedor) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFFB45309)),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                '$nombreProveedor cobra su propia comision por la transaccion. '
+                                'Ese cargo corresponde al proveedor y no forma parte del cobro de Vaia.'
+                                '${minimoProveedor > 0 ? ' Monto minimo para este metodo: \$${minimoProveedor.toStringAsFixed(2)}.' : ''}',
+                                style: const TextStyle(fontSize: 11, height: 1.4, color: Color(0xFF92400E)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -809,12 +881,21 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text('Resumen del costo', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
-                                      Text('Calculado con la tarifa vigente de tu ciudad',
-                                          style: TextStyle(fontSize: 11, color: AppTheme.textMedium)),
                                     ],
                                   ),
                                 ),
                               ],
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                !tarifaDelServidor
+                                    ? 'Calculado con una tarifa de referencia'
+                                    : (tarifaRespaldo
+                                        ? 'Tarifa configurada (respaldo para hoy)'
+                                        : 'Calculado con la tarifa vigente de tu ciudad'),
+                                style: const TextStyle(fontSize: 11, color: AppTheme.textMedium),
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Row(children: [
@@ -834,6 +915,37 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                               const SizedBox(width: 8),
                               Expanded(child: _costoMini(Icons.account_balance_wallet_rounded, 'Forma de pago', _metodosPago[_selectedPaymentType] ?? 'Efectivo')),
                             ]),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Total = tarifa minima + (km recorridos x costo por km) + (minutos x costo por minuto).',
+                              style: const TextStyle(fontSize: 10, height: 1.35, color: AppTheme.textLight),
+                            ),
+                            if (esPagoProveedor) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFFBEB),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFFDE68A)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.account_balance_outlined, size: 16, color: Color(0xFFB45309)),
+                                    const SizedBox(width: 7),
+                                    Expanded(
+                                      child: Text(
+                                        'Comision del proveedor: $nombreProveedor la cobra por la transaccion. '
+                                        'No la cobra Vaia y no esta incluida en el total estimado.',
+                                        style: const TextStyle(fontSize: 10.5, height: 1.4, color: Color(0xFF92400E)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             if (_discount > 0) ...[
                               const SizedBox(height: 10),
                               Container(
@@ -874,7 +986,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '\$${finalCost.toStringAsFixed(2)}',
+                                    '\$${montoTotal.toStringAsFixed(2)}',
                                     style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppTheme.primary, letterSpacing: -0.5),
                                   ),
                                 ],
