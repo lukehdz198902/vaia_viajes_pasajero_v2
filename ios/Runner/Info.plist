@@ -4,7 +4,24 @@
 <dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Vaia necesita acceder a tu ubicacion para mostrarte conductores cercanos y solicitar viajes.</string>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Vaia necesita tu ubicacion en segundo plano para mantener el seguimiento del servicio activo.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vaia usa la camara para tu foto de perfil y soporte.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Vaia accede a tus fotos para tu perfil y soporte.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>whatsapp</string>
+		<string>comgooglemaps</string>
+		<string>maps</string>
+	</array>	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

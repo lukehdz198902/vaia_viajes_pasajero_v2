@@ -13,6 +13,7 @@ import '../../config/routes.dart';
 import '../../models/recorrido_model.dart';
 import '../../models/ride_model.dart';
 import '../../services/api_service.dart';
+import '../../services/error_messages.dart';
 import '../../services/marker_icons.dart';
 import '../../services/sound_service.dart';
 import '../../widgets/ruta_timeline.dart';
@@ -379,7 +380,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> with SingleTi
         messenger.showSnackBar(const SnackBar(content: Text('No se pudo abrir la pasarela de pago'), backgroundColor: VaiaColors.danger));
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Error al pagar: $e'), backgroundColor: VaiaColors.danger));
+      messenger.showSnackBar(SnackBar(content: Text(ErrorMessages.friendly(e, fallbackMessage: 'No se pudo iniciar el pago. Intenta de nuevo.')), backgroundColor: VaiaColors.danger));
     }
   }
 

@@ -75,10 +75,27 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: VaiaColors.danger),
-      );
+      await _mostrarErrorGoogle(e.toString().replaceFirst('Exception: ', ''));
     }
+  }
+
+  Future<void> _mostrarErrorGoogle(String mensaje) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.g_mobiledata_rounded, color: VaiaColors.danger, size: 40),
+        title: const Text('No se pudo iniciar con Google'),
+        content: Text(
+          mensaje,
+          style: const TextStyle(fontSize: 13.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
+        ],
+      ),
+    );
   }
 
   Future<void> _login() async {

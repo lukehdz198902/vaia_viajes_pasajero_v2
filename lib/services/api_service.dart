@@ -4,6 +4,7 @@ import '../config/api_config.dart';
 import '../models/api_response.dart';
 import 'storage_service.dart';
 import 'logger.dart';
+import 'error_messages.dart';
 
 class ApiService {
   final StorageService _storage;
@@ -73,7 +74,7 @@ class ApiService {
       return _handleResponse(response);
     } catch (e) {
       Logger.apiError('GET', url, e);
-      return ApiResponse.error('Error de conexion: ${e.toString()}');
+      return ApiResponse.error(ErrorMessages.friendly(e));
     }
   }
 
@@ -93,7 +94,7 @@ class ApiService {
       return _handleResponse(response);
     } catch (e) {
       Logger.apiError('POST', url, e);
-      return ApiResponse.error('Error de conexion: ${e.toString()}');
+      return ApiResponse.error(ErrorMessages.friendly(e));
     }
   }
 
@@ -113,7 +114,7 @@ class ApiService {
       return _handleResponse(response);
     } catch (e) {
       Logger.apiError('GET', url, e);
-      return ApiResponse.error('Error de conexion: ${e.toString()}');
+      return ApiResponse.error(ErrorMessages.friendly(e));
     }
   }
 
@@ -128,7 +129,7 @@ class ApiService {
       return _handleResponse(response);
     } catch (e) {
       Logger.apiError('POST', url, e);
-      return ApiResponse.error('Error de conexion: ${e.toString()}');
+      return ApiResponse.error(ErrorMessages.friendly(e));
     }
   }
 
@@ -244,6 +245,20 @@ class ApiService {
 
   Future<ApiResponse> listarParadas(int idServicio) =>
       getRoot('Servicio', 'ListarParadas', params: {'idservicio': idServicio.toString()});
+
+  Future<ApiResponse> chatAbierto(int idServicio, int idUsuario) =>
+      postRoot('Servicio', 'ChatAbierto', body: {
+        'tipo': 'pasajero',
+        'idUsuario': idUsuario,
+        'idServicio': idServicio,
+      });
+
+  Future<ApiResponse> chatCerrado(int idServicio, int idUsuario) =>
+      postRoot('Servicio', 'ChatCerrado', body: {
+        'tipo': 'pasajero',
+        'idUsuario': idUsuario,
+        'idServicio': idServicio,
+      });
 
   Future<ApiResponse> completarParada(int idParada, int idConductor) =>
       postRoot('Servicio', 'CompletarParada', body: {'idParada': idParada, 'idConductor': idConductor});

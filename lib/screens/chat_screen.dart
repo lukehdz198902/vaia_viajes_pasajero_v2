@@ -1,10 +1,14 @@
+import 'dart:async';
 import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../models/mensaje_chat_model.dart';
 import '../../config/theme.dart';
+import '../../services/api_service.dart';
+import '../../services/notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final int idServicio;
@@ -24,11 +28,14 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _messageCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _focusNode = FocusNode();
   bool _showTemplates = false;
+  Timer? _presenceTimer;
+  ApiService? _api;
+  int _idPasajero = 0;
 
   static const List<String> _messageTemplates = [
     'Estoy en la puerta principal',
@@ -44,15 +51,58 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final chat = context.read<ChatProvider>();
       chat.cargarMensajes(widget.idServicio);
       chat.startPolling(widget.idServicio);
+      _idPasajero = context.read<AuthProvider>().userId;
+      _api = context.read<ApiService>();
+      NotificationService.idServicioChatAbierto = widget.idServicio;
+      _marcarChatAbierto();
+      _presenceTimer = Timer.periodic(const Duration(seconds: 25), (_) => _heartbeatPresencia());
     });
+  }
+
+  void _marcarChatAbierto() {
+    final api = _api;
+    if (api == null || _idPasajero <= 0) return;
+    api.chatAbierto(widget.idServicio, _idPasajero);
+  }
+
+  /// Solo mantiene la presencia si esta pantalla sigue visible.
+  void _heartbeatPresencia() {
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    _marcarChatAbierto();
+  }
+
+  void _marcarChatCerrado() {
+    final api = _api;
+    if (api == null || _idPasajero <= 0) return;
+    api.chatCerrado(widget.idServicio, _idPasajero);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _presenceTimer?.cancel();
+      _marcarChatCerrado();
+    } else if (state == AppLifecycleState.resumed) {
+      _marcarChatAbierto();
+      _presenceTimer?.cancel();
+      _presenceTimer = Timer.periodic(const Duration(seconds: 25), (_) => _heartbeatPresencia());
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _presenceTimer?.cancel();
+    _marcarChatCerrado();
+    if (NotificationService.idServicioChatAbierto == widget.idServicio) {
+      NotificationService.idServicioChatAbierto = 0;
+    }
     context.read<ChatProvider>().stopPolling();
     _messageCtrl.dispose();
     _scrollCtrl.dispose();

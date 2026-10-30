@@ -1,8 +1,9 @@
 {
   "project_info": {
     "project_number": "933685582766",
+    "firebase_url": "https://vaia-9760b.firebaseio.com",
     "project_id": "vaia-9760b",
-    "storage_bucket": "vaia-9760b.appspot.com"
+    "storage_bucket": "vaia-9760b.firebasestorage.app"
   },
   "client": [
     {
@@ -12,15 +13,108 @@
           "package_name": "prozoft.com.vaia"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "933685582766-16f7j16i00g4jch5d4luf9ebpjv0bcnm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "prozoft.com.vaia",
+            "certificate_hash": "f2b99007b23dfcd1919a010084da839b1ee5ffbb"
+          }
+        },
+        {
+          "client_id": "933685582766-1iks5qprhcpd9pqncrh481nkefqnme97.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "prozoft.com.vaia",
+            "certificate_hash": "ed3d988c935abbf7522af18c7b1c54c7796cf8b4"
+          }
+        },
+        {
+          "client_id": "933685582766-fidlougocd8q14qb7jsini67vn2lbopg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "prozoft.com.vaia",
+            "certificate_hash": "8d4bb32f55bd8255fd5436d335d636f8a1f0f742"
+          }
+        },
+        {
+          "client_id": "933685582766-k5ddoc6c16vl16pso0td4utgtb3d4pc6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "prozoft.com.vaia",
+            "certificate_hash": "551ba8e23d1e4d0a89e90a4c24f01fc325e72062"
+          }
+        },
+        {
+          "client_id": "933685582766-pliu1n7269levqqrl1soi9kn8n5h39ma.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "prozoft.com.vaia",
+            "certificate_hash": "9f72245a33068e3ee93b6d32fe58eadea2857809"
+          }
+        },
+        {
+          "client_id": "933685582766-rdb8ojhv28h95d34micnfq5ih88171nq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "prozoft.com.vaia",
+            "certificate_hash": "d209fcc8bde85ddf8c0a9ae6325b7d149ba796f6"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA8KcEviMocge0WyWD6HHl6juA8bmknyCk"
+        },
+        {
+          "current_key": "AIzaSyCKuDLSzNXXMw4JkNACNBQTMPuXSEWQJDE"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "933685582766-f5c2tlo0frhhni5aueb65ev8gtqkc6ra.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:933685582766:android:0fca12fc0061a6bd68863f",
+        "android_client_info": {
+          "package_name": "prozoft.com.vaiaconductor"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "933685582766-dfvvljhi8nkvhhoksp8ubf5jequhmdnd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "prozoft.com.vaiaconductor",
+            "certificate_hash": "8d4bb32f55bd8255fd5436d335d636f8a1f0f742"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8KcEviMocge0WyWD6HHl6juA8bmknyCk"
+        },
+        {
+          "current_key": "AIzaSyCKuDLSzNXXMw4JkNACNBQTMPuXSEWQJDE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "933685582766-f5c2tlo0frhhni5aueb65ev8gtqkc6ra.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
